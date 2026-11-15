@@ -1,6 +1,6 @@
 -- 전리품 도우미 (LootAssist) - 코어
 local ADDON, NS = ...
-NS.VERSION = "0.2.2"
+NS.VERSION = "0.3.0"
 NS.TAG = "|cff66ccff[전리품 도우미]|r "
 
 function NS.Print(msg)
@@ -143,7 +143,9 @@ end)
 SLASH_LOOTASSIST1 = "/lla"
 SLASH_LOOTASSIST2 = "/전리품"
 SlashCmdList.LOOTASSIST = function(msg)
-  local cmd = (msg or ""):lower():match("^%s*(%S*)")
+  msg = msg or ""
+  local cmd = (msg:match("^%s*(%S*)") or ""):lower()
+  local rest = msg:match("^%s*%S+%s+(.+)$")
   if cmd == "" or cmd == "show" then
     NS.Safe(NS.ToggleMainWindow)
   elseif cmd == "debug" then
@@ -165,12 +167,32 @@ SlashCmdList.LOOTASSIST = function(msg)
         end
       end
     end
+  elseif cmd == "평가" or cmd == "eval" then
+    if not rest then
+      NS.Print("사용법: /전리품 평가 [아이템 링크]  (채팅창에 Shift+클릭으로 링크를 넣으세요)")
+    else
+      local r = NS.EvaluateForMe(rest, { ignoreEquipped = true })
+      NS.Print(rest .. " → " .. r.colored)
+      for _, line in ipairs(r.reasons) do NS.Print("  " .. line) end
+      if r.fitP then
+        NS.Print(("  적합도 주 %.2f / 상승 %s"):format(r.fitP, r.gainP and ("%.0f%%"):format(r.gainP * 100) or "?"))
+      end
+    end
+  elseif cmd == "툴팁" or cmd == "tooltip" then
+    NS.db.tooltip = (NS.db.tooltip == false)
+    NS.Print("툴팁 평가 " .. (NS.db.tooltip and "켬" or "끔"))
+  elseif cmd == "채팅" or cmd == "chat" then
+    NS.db.rollChat = (NS.db.rollChat == false)
+    NS.Print("주사위 판정 채팅 알림 " .. (NS.db.rollChat and "켬" or "끔"))
   elseif cmd == "minimap" then
     NS.db.minimap.hide = not NS.db.minimap.hide
     NS.Safe(NS.UpdateMinimapButton)
     NS.Print("미니맵 버튼 " .. (NS.db.minimap.hide and "숨김" or "표시"))
   else
     NS.Print("/전리품 - 창 열기/닫기")
+    NS.Print("/전리품 평가 [아이템 링크] - 내 기준 판정과 이유 보기")
+    NS.Print("/전리품 툴팁 - 아이템 툴팁의 판정 표시 켜기/끄기")
+    NS.Print("/전리품 채팅 - 주사위가 뜰 때 채팅창 판정 알림 켜기/끄기")
     NS.Print("/전리품 던전 - 현재 던전의 보스별 전리품 데이터 보기")
     NS.Print("/전리품 minimap - 미니맵 버튼 숨기기/보이기")
     NS.Print("/전리품 errors - 오류 기록 보기")
