@@ -19,13 +19,19 @@ local function send(msg)
   local ch = channel()
   if not ch then return end
   local ok, res = pcall(C_ChatInfo.SendAddonMessage, PREFIX, msg, ch)
+  if msg:sub(1, 1) == "S" and NS.Log then
+    NS.Log("commSend", { channel = ch, ok = ok, result = tostring(res), dungeon = (NS.GetLocation() == "DUNGEON") or nil })
+  end
   if not ok or (type(res) == "number" and res ~= 0) then
+    if NS.Log then NS.Log("commFail", { channel = ch, msg = msg:sub(1, 1), result = tostring(res) }) end
     NS.db.commErrors = NS.db.commErrors or {}
     if #NS.db.commErrors < 20 then
       table.insert(NS.db.commErrors, date("%m-%d %H:%M") .. " " .. ch .. " " .. tostring(res))
     end
   end
 end
+
+NS.SendRaw = send
 
 local function encodeScores(specKey)
   local me = NS.GetPlayerInfo()
@@ -81,6 +87,8 @@ local function onMessage(msg, sender)
     c.secondary = (s ~= "-" and s ~= "") and s or nil
     c.time = GetTime()
     NS.PartyComm[name] = c
+    if NS.Log then NS.Log("commRecv", { from = name, class = cls, level = tonumber(lvl), primary = c.primary,
+      secondary = c.secondary, combat = InCombatLockdown() or nil, dungeon = (NS.GetLocation() == "DUNGEON") or nil }) end
   elseif (kind == "P" or kind == "Q") and c then
     local t = {}
     for cat, v in rest:gmatch("(%w)([%dx%.%-]+)") do
@@ -88,6 +96,9 @@ local function onMessage(msg, sender)
     end
     c.scores = c.scores or {}
     c.scores[kind == "P" and "P" or "S"] = t
+  elseif kind == "L" then
+    if NS.OnRemoteLog then NS.OnRemoteLog(name, rest) end
+    return
   elseif kind == "R" then
     NS.QueueBroadcast()
     return

@@ -1,6 +1,6 @@
 -- 전리품 도우미 (LootAssist) - 코어
 local ADDON, NS = ...
-NS.VERSION = "0.4.0"
+NS.VERSION = "0.4.1"
 NS.TAG = "|cff66ccff[전리품 도우미]|r "
 
 function NS.Print(msg)
@@ -197,6 +197,16 @@ SlashCmdList.LOOTASSIST = function(msg)
       NS.Print(("%s %s %d - 특성: %s (%s) / 장비: %s"):format(m.name, m.className or m.class, m.level or 0,
         ps and ps.name or "미확인", info.specSource or "없음", info.gearSource or "미확인"))
     end
+  elseif cmd == "기록" or cmd == "log" then
+    local log = NS.db.log or {}
+    local count = {}
+    for _, e in ipairs(log) do count[e.k] = (count[e.k] or 0) + 1 end
+    NS.Print(("테스트 기록 %d건 - 내 주사위 %d · 친구 주사위 %d · 보스 %d · 통신 받음 %d · 통신 실패 %d"):format(
+      #log, count.roll or 0, count.friendRoll or 0, count.boss or 0, count.commRecv or 0, count.commFail or 0))
+    NS.Print("/reload 또는 로그아웃 후 WTF\\Account\\<계정>\\SavedVariables\\LootAssist.lua 파일을 보내 주세요.")
+  elseif cmd == "기록지우기" then
+    NS.db.log = {}
+    NS.Print("테스트 기록을 지웠습니다.")
   elseif cmd == "minimap" then
     NS.db.minimap.hide = not NS.db.minimap.hide
     NS.Safe(NS.UpdateMinimapButton)
@@ -209,6 +219,7 @@ SlashCmdList.LOOTASSIST = function(msg)
     NS.Print("/전리품 파티 - 파티원 특성/장비 정보 출처 보기")
     NS.Print("/전리품 공유 - 마지막 주사위 판정 문장을 채팅 입력창에 넣기 (보내기는 직접)")
     NS.Print("/전리품 던전 - 현재 던전의 보스별 전리품 데이터 보기")
+    NS.Print("/전리품 기록 - 테스트 기록 현황 (/전리품 기록지우기 로 비우기)")
     NS.Print("/전리품 minimap - 미니맵 버튼 숨기기/보이기")
     NS.Print("/전리품 errors - 오류 기록 보기")
   end

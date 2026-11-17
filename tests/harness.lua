@@ -40,11 +40,12 @@ wipe = function(t) for k in pairs(t) do t[k] = nil end end
 hooksecurefunc = noop
 UnitExists = function() return false end
 InCombatLockdown = function() return false end
+GetBuildInfo = function() return "1.60.1", "70938" end
 
 -- toc 순서로 불러오기 (UI 제외)
 local NS = {}
 for _, f in ipairs({ "Core/Init.lua", "Data/Classes.lua", "Data/Weights.lua", "Core/Specs.lua", "Data/Dungeons.lua", "Core/Dungeons.lua",
-                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua", "Collect/Party.lua", "Engine/PartyEval.lua", "Engine/Advisor.lua" }) do
+                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua", "Collect/Party.lua", "Engine/PartyEval.lua", "Engine/Advisor.lua", "Core/TestLog.lua" }) do
   local chunk = assert(loadfile(ADDON_DIR .. f))
   chunk("LootAssist", NS)
 end
@@ -112,4 +113,24 @@ if arg[5] == "party" or arg[5] == "party2" then
     end
   end
   if #NS.errors > 0 then print("ERRORS:"); for _, e in ipairs(NS.errors) do print(e) end end
+end
+
+if arg[5] == "log" then
+  NS.Party = { { unit = "party1", guid = "G1", name = "왕만두", class = "SHAMAN", className = "주술사", level = 27 } }
+  local sent = {}
+  NS.SendRaw = function(m) sent[#sent + 1] = m end
+  local link = P.rolls[22] or P.rolls[1]
+  local r = NS.Advise(link)
+  NS.LogRoll(link, r)
+  print("보낸 메시지:", sent[1])
+  -- 친구 쪽에서 같은 메시지를 받았다고 가정
+  NS.OnRemoteLog("왕만두", sent[1]:match("^L|(.*)$"))
+  for i, e in ipairs(NS.db.log) do
+    local parts = {}
+    for k, v in pairs(e) do if type(v) ~= "table" then parts[#parts + 1] = k .. "=" .. tostring(v) end end
+    table.sort(parts)
+    print(i, table.concat(parts, " "))
+    if e.reasons then print("   reasons:", table.concat(e.reasons, " | ")) end
+    if e.rivals then print("   rivals:", table.concat(e.rivals, " | ")) end
+  end
 end

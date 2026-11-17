@@ -12,10 +12,13 @@ local function report(rollID, tries)
     C_Timer.After(0.5, function() NS.Safe(report, rollID, tries + 1) end)
     return
   end
-  local reason = r.reasons[1] and (" - " .. r.reasons[1]) or ""
-  NS.Print(("%s → %s%s"):format(link, r.colored, reason))
-  for i = 2, math.min(#r.reasons, 3) do NS.Print("    " .. r.reasons[i]) end
+  if NS.db.rollChat ~= false then
+    local reason = r.reasons[1] and (" - " .. r.reasons[1]) or ""
+    NS.Print(("%s → %s%s"):format(link, r.colored, reason))
+    for i = 2, math.min(#r.reasons, 3) do NS.Print("    " .. r.reasons[i]) end
+  end
   NS.lastShare = NS.ShareText(r, link)
+  if NS.LogRoll then NS.Safe(NS.LogRoll, link, r) end
 end
 
 -- 마지막 주사위 판정 문장을 채팅 입력창에 넣어 준다 (보내기는 직접)
@@ -31,6 +34,6 @@ end
 local f = CreateFrame("Frame")
 f:RegisterEvent("START_LOOT_ROLL")
 f:SetScript("OnEvent", function(_, _, rollID)
-  if not NS.db or NS.db.rollChat == false then return end
+  if not NS.db then return end
   NS.Safe(report, rollID, 0)
 end)
