@@ -81,17 +81,20 @@ function NS.SpecFit(item, classFile, specKey, maxScore)
   return usesWeaponDPS(item, NS.GetWeights(classFile, specKey)) and 1 or 0
 end
 
-local function readEquipped(slot)
-  local link = GetInventoryItemLink("player", slot)
+local function readEquipped(slot, getLink)
+  local link
+  if getLink then link = getLink(slot) else link = GetInventoryItemLink("player", slot) end
   if not link then return false end
   local it, state = NS.ReadItem(link)
   if not it then return nil, state end
   return it
 end
 
--- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명
-function NS.CurrentSlotScore(item, classFile, specKey)
+-- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명, 세 번째 값은 칸에 장비가 있는지
+-- getLink(slot) 를 주면 그 장비(살펴보기로 읽은 파티원 장비 등)로 계산한다
+function NS.CurrentSlotScore(item, classFile, specKey, getLink)
   local W = NS.GetWeights(classFile, specKey) or {}
+  local readEquipped = function(slot) return readEquipped(slot, getLink) end
   local loc = item.equipLoc
   local function score(it) if not it then return 0 end return (NS.SpecScore(it, classFile, specKey)) or 0 end
 

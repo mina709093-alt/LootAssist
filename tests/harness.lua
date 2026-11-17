@@ -22,7 +22,7 @@ GetInventoryItemLink = function(_, slot) return P.equipped[slot] end
 local equippedSet = {}
 for _, l in pairs(P.equipped) do equippedSet[l] = true end
 
-local function rec(link) return P.items[link] end
+local function rec(link) return P.items[link] or (DATA.A.items[link]) or (DATA.B.items[link]) end
 C_Item = {
   GetItemInfoInstant = function(link) local r = rec(link); if not r then return nil end local v = r.instant
     return v[1], v[2], v[3], v[4], v[5], v[6], v[7] end,
@@ -36,11 +36,15 @@ C_TooltipInfo = { GetHyperlink = function(link) local r = rec(link); if not r th
   local lines = {}; for i = 1, 40 do if r.tip[i] then lines[#lines + 1] = { leftText = r.tip[i] } end end
   return { lines = lines } end }
 SLASH_LOOTASSIST1 = nil; SlashCmdList = {}
+wipe = function(t) for k in pairs(t) do t[k] = nil end end
+hooksecurefunc = noop
+UnitExists = function() return false end
+InCombatLockdown = function() return false end
 
 -- toc 순서로 불러오기 (UI 제외)
 local NS = {}
 for _, f in ipairs({ "Core/Init.lua", "Data/Classes.lua", "Data/Weights.lua", "Core/Specs.lua", "Data/Dungeons.lua", "Core/Dungeons.lua",
-                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua" }) do
+                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua", "Collect/Party.lua", "Engine/PartyEval.lua", "Engine/Advisor.lua" }) do
   local chunk = assert(loadfile(ADDON_DIR .. f))
   chunk("LootAssist", NS)
 end
@@ -67,4 +71,45 @@ if arg[5] then
       print(("%2d fitP=%.2f gainP=%s max=%.1f(%s) [%s] dps=%.1f"):format(i, r.fitP or -1, tostring(r.gainP), max, bestName, table.concat(st, ","), r.item.dps))
     end
   end
+end
+
+-- 파티 시나리오: texlua harness.lua B FIRE nil 25 party
+if arg[5] == "party" or arg[5] == "party2" then
+  local A = DATA.A
+  GetInstanceInfo = function() return "통곡의 동굴", "party", 1, "", 5, 0, false, 43 end
+  NS.Party = {
+    { unit = "party1", guid = "G-SHAMAN", name = "왕만두", class = "SHAMAN", className = "주술사", level = 27 },
+    { unit = "party2", guid = "G-PRIEST", name = "마라탕", class = "PRIEST", className = "사제", level = 26 },
+    { unit = "party3", guid = "G-WARRIOR", name = "돼지껍데기", class = "WARRIOR", className = "전사", level = 25 },
+    { unit = "party4", guid = "G-ROGUE", name = "스무디", class = "ROGUE", className = "도적", level = 25 },
+  }
+  -- 주술사: 자동 공유(정기) + 장비는 살펴보기 결과(실측 장비)
+  NS.PartyComm["왕만두"] = { class = "SHAMAN", primary = "ELEMENTAL", level = 27 }
+  NS.PartyInspect["G-SHAMAN"] = { links = A.equipped }
+  -- 사제: 직접 설정(신성), 장비 미확인
+  NS.ManualFor("마라탕").primary = "HOLY"
+  -- 전사: 특성 미확인, 장비 미확인 / 도적: 직접 설정(전투)
+  NS.ManualFor("스무디").primary = "COMBAT"
+  if arg[5] == "party2" then
+    -- 나 = 주술사 A, 첫 파티원을 마법사 B(화염, 살펴보기 장비)로 교체
+    NS.Party[1] = { unit = "party1", guid = "G-MAGE", name = "스무디마법", class = "MAGE", className = "마법사", level = 25 }
+    NS.PartyComm["스무디마법"] = { class = "MAGE", primary = "FIRE", level = 25 }
+    NS.PartyInspect["G-MAGE"] = { links = DATA.B.equipped }
+  end
+  print("== 파티 판정 (나: 마법사 화염 25)")
+  local seen = {}
+  for _, who in ipairs({ "A", "B" }) do
+    for _, link in pairs(DATA[who].rolls) do
+      if not seen[link] then
+        seen[link] = true
+        local r = NS.Advise(link)
+        if r.final ~= "NOT_GEAR" then
+          local name = link:match("%[(.-)%]")
+          local plain = function(s) return (s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+          print(("%-26s %-14s %s"):format(name, r.label, plain(table.concat(r.reasons, " / "))))
+        end
+      end
+    end
+  end
+  if #NS.errors > 0 then print("ERRORS:"); for _, e in ipairs(NS.errors) do print(e) end end
 end

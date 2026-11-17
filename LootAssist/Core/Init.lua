@@ -1,6 +1,6 @@
 -- 전리품 도우미 (LootAssist) - 코어
 local ADDON, NS = ...
-NS.VERSION = "0.3.0"
+NS.VERSION = "0.4.0"
 NS.TAG = "|cff66ccff[전리품 도우미]|r "
 
 function NS.Print(msg)
@@ -171,12 +171,15 @@ SlashCmdList.LOOTASSIST = function(msg)
     if not rest then
       NS.Print("사용법: /전리품 평가 [아이템 링크]  (채팅창에 Shift+클릭으로 링크를 넣으세요)")
     else
-      local r = NS.EvaluateForMe(rest, { ignoreEquipped = true })
+      local r = NS.Advise(rest)
       NS.Print(rest .. " → " .. r.colored)
       for _, line in ipairs(r.reasons) do NS.Print("  " .. line) end
-      if r.fitP then
-        NS.Print(("  적합도 주 %.2f / 상승 %s"):format(r.fitP, r.gainP and ("%.0f%%"):format(r.gainP * 100) or "?"))
+      local p = r.personal
+      if p and p.fitP then
+        NS.Print(("  적합도 주 %.2f / 상승 %s"):format(p.fitP, p.gainP and ("%.0f%%"):format(p.gainP * 100) or "?"))
       end
+      if r.Nme then NS.Print(("  필요도 나 %.2f / 파티 최대 %.2f"):format(r.Nme, r.Nrival or 0)) end
+      NS.lastShare = NS.ShareText(r, rest)
     end
   elseif cmd == "툴팁" or cmd == "tooltip" then
     NS.db.tooltip = (NS.db.tooltip == false)
@@ -184,6 +187,16 @@ SlashCmdList.LOOTASSIST = function(msg)
   elseif cmd == "채팅" or cmd == "chat" then
     NS.db.rollChat = (NS.db.rollChat == false)
     NS.Print("주사위 판정 채팅 알림 " .. (NS.db.rollChat and "켬" or "끔"))
+  elseif cmd == "공유" or cmd == "share" then
+    NS.Safe(NS.OpenShareText)
+  elseif cmd == "파티" or cmd == "party" then
+    if #NS.Party == 0 then NS.Print("파티원이 없습니다.") end
+    for _, m in ipairs(NS.Party) do
+      local info = NS.MemberInfo(m)
+      local ps = NS.GetSpec(m.class, info.primary)
+      NS.Print(("%s %s %d - 특성: %s (%s) / 장비: %s"):format(m.name, m.className or m.class, m.level or 0,
+        ps and ps.name or "미확인", info.specSource or "없음", info.gearSource or "미확인"))
+    end
   elseif cmd == "minimap" then
     NS.db.minimap.hide = not NS.db.minimap.hide
     NS.Safe(NS.UpdateMinimapButton)
@@ -193,6 +206,8 @@ SlashCmdList.LOOTASSIST = function(msg)
     NS.Print("/전리품 평가 [아이템 링크] - 내 기준 판정과 이유 보기")
     NS.Print("/전리품 툴팁 - 아이템 툴팁의 판정 표시 켜기/끄기")
     NS.Print("/전리품 채팅 - 주사위가 뜰 때 채팅창 판정 알림 켜기/끄기")
+    NS.Print("/전리품 파티 - 파티원 특성/장비 정보 출처 보기")
+    NS.Print("/전리품 공유 - 마지막 주사위 판정 문장을 채팅 입력창에 넣기 (보내기는 직접)")
     NS.Print("/전리품 던전 - 현재 던전의 보스별 전리품 데이터 보기")
     NS.Print("/전리품 minimap - 미니맵 버튼 숨기기/보이기")
     NS.Print("/전리품 errors - 오류 기록 보기")
