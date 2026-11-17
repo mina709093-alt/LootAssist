@@ -89,6 +89,7 @@ local function onMessage(msg, sender)
     NS.PartyComm[name] = c
     if NS.Log then NS.Log("commRecv", { from = name, class = cls, level = tonumber(lvl), primary = c.primary,
       secondary = c.secondary, combat = InCombatLockdown() or nil, dungeon = (NS.GetLocation() == "DUNGEON") or nil }) end
+    if NS.db.collector and NS.SendAck then NS.SendAck(name) end
   elseif (kind == "P" or kind == "Q") and c then
     local t = {}
     for cat, v in rest:gmatch("(%w)([%dx%.%-]+)") do
@@ -96,8 +97,13 @@ local function onMessage(msg, sender)
     end
     c.scores = c.scores or {}
     c.scores[kind == "P" and "P" or "S"] = t
+  elseif kind == "A" then
+    if NS.OnAck then NS.OnAck(name, rest) end
+    return
+  elseif kind == "H" then
+    if NS.OnHistory then NS.OnHistory(name, rest) end
+    return
   elseif kind == "L" then
-    if NS.OnRemoteLog then NS.OnRemoteLog(name, rest) end
     return
   elseif kind == "R" then
     NS.QueueBroadcast()

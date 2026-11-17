@@ -1,6 +1,6 @@
 -- 전리품 도우미 (LootAssist) - 코어
 local ADDON, NS = ...
-NS.VERSION = "0.4.1"
+NS.VERSION = "0.4.2"
 NS.TAG = "|cff66ccff[전리품 도우미]|r "
 
 function NS.Print(msg)
@@ -201,9 +201,18 @@ SlashCmdList.LOOTASSIST = function(msg)
     local log = NS.db.log or {}
     local count = {}
     for _, e in ipairs(log) do count[e.k] = (count[e.k] or 0) + 1 end
-    NS.Print(("테스트 기록 %d건 - 내 주사위 %d · 친구 주사위 %d · 보스 %d · 통신 받음 %d · 통신 실패 %d"):format(
-      #log, count.roll or 0, count.friendRoll or 0, count.boss or 0, count.commRecv or 0, count.commFail or 0))
+    NS.Print(("테스트 기록 %d건 - 내 주사위 %d · 보스 %d · 통신 받음 %d · 통신 실패 %d"):format(
+      #log, count.roll or 0, count.boss or 0, count.commRecv or 0, count.commFail or 0))
+    NS.Print(("내 판정 보관 %d건 (수집자에게 보낼 것)"):format(#(NS.db.myRolls or {})))
+    if NS.db.collector then
+      NS.Print("|cff66dd66수집 켜짐|r - 친구별로 모은 판정:")
+      for who, list in pairs(NS.db.collected or {}) do NS.Print(("  %s: %d건"):format(who, #list)) end
+    end
     NS.Print("/reload 또는 로그아웃 후 WTF\\Account\\<계정>\\SavedVariables\\LootAssist.lua 파일을 보내 주세요.")
+  elseif cmd == "수집" or cmd == "collect" then
+    NS.db.collector = not NS.db.collector
+    NS.Print("수집 " .. (NS.db.collector and "|cff66dd66켬|r - 파티원들이 보관한 판정을 받아 모읍니다" or "끔"))
+    if NS.db.collector and NS.RequestPartyInfo then NS.Safe(NS.RequestPartyInfo) end
   elseif cmd == "기록지우기" then
     NS.db.log = {}
     NS.Print("테스트 기록을 지웠습니다.")
@@ -220,6 +229,7 @@ SlashCmdList.LOOTASSIST = function(msg)
     NS.Print("/전리품 공유 - 마지막 주사위 판정 문장을 채팅 입력창에 넣기 (보내기는 직접)")
     NS.Print("/전리품 던전 - 현재 던전의 보스별 전리품 데이터 보기")
     NS.Print("/전리품 기록 - 테스트 기록 현황 (/전리품 기록지우기 로 비우기)")
+    NS.Print("/전리품 수집 - 이 캐릭터를 수집자로 켜기/끄기 (파티원 판정을 모음)")
     NS.Print("/전리품 minimap - 미니맵 버튼 숨기기/보이기")
     NS.Print("/전리품 errors - 오류 기록 보기")
   end

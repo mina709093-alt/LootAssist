@@ -4,6 +4,7 @@
 local _, NS = ...
 
 local MAX_ENTRIES = 600
+local storeMyRoll -- 아래 "수집" 부분에서 정의
 
 local function plain(s)
   if type(s) ~= "string" then return s end
@@ -49,41 +50,128 @@ function NS.LogRoll(link, r)
       info.specSource or "미확인", info.gearSource or "미확인")
   end
   NS.Log("roll", entry)
-  NS.QueueRollShare(entry)
+  entry.t = entry.t or date("%m-%d %H:%M:%S")
+  storeMyRoll(entry)
+  NS.KickSync()
 end
 
 ---------------------------------------------------------------------------
--- 파티원에게 내 판정 요약 보내기 / 받기 (전투 중에는 모아 두었다가 전투 후 전송)
--- 메시지: L|아이템ID|최종|개인|Nme|Nrival|1순위경쟁자
+-- 수집 (모으는 사람 = 수집자)
+-- 모든 사람은 자기 주사위 판정을 번호(seq)를 붙여 db.myRolls 에 보관한다.
+-- 수집자(/전리품 수집 으로 켠 사람)와 파티가 되면, 수집자가 "어디까지 받았는지"(A)를 알려 주고
+-- 각자 그 뒤의 판정(H)을 1.5초에 하나씩, 전투가 아닐 때만 보낸다.
+-- 그래서 수집자가 없을 때 친구들끼리 플레이한 판정도 나중에 수집자 파일로 모인다.
+-- 메시지: A|대상이름|받은마지막번호    H|번호|시각|아이템|최종|개인|N나|N파티|경쟁자|장소|보스|이유
 ---------------------------------------------------------------------------
-local outbox = {}
+local MAX_MY_ROLLS = 1500
 
-function NS.QueueRollShare(entry)
+local function cutBytes(str, max)
+  str = tostring(str or ""):gsub("|", "/")
+  if #str <= max then return str end
+  local out = ""
+  for ch in str:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    if #out + #ch > max then break end
+    out = out .. ch
+  end
+  return out
+end
+
+storeMyRoll = function(entry)
+  local db = NS.db
+  db.myRolls = db.myRolls or {}
+  db.mySeq = (db.mySeq or 0) + 1
   local top = entry.rivals[1] and entry.rivals[1]:match("^(%S+)") or "-"
-  outbox[#outbox + 1] = ("L|%s|%s|%s|%s|%s|%s"):format(
-    entry.item or 0, entry.final or "-", entry.personal or "-",
-    entry.Nme or "-", entry.Nrival or "-", top)
-  NS.FlushOutbox()
+  db.myRolls[#db.myRolls + 1] = {
+    seq = db.mySeq, t = entry.t, item = entry.item, final = entry.final, personal = entry.personal,
+    Nme = entry.Nme, Nrival = entry.Nrival, top = top, place = entry.place, boss = entry.boss,
+    reason = entry.reasons[1],
+  }
+  while #db.myRolls > MAX_MY_ROLLS do table.remove(db.myRolls, 1) end
 end
 
-function NS.FlushOutbox()
-  if #outbox == 0 or not NS.SendRaw then return end
+-- 보내는 쪽 -------------------------------------------------------------
+local cursor = nil      -- 수집자가 받은 마지막 번호
+local collectorName = nil
+local ticker = nil
+
+local function collectorInParty()
+  if not collectorName then return false end
+  for _, m in ipairs(NS.Party) do if m.name == collectorName then return true end end
+  return false
+end
+
+local function nextToSend()
+  for _, e in ipairs(NS.db.myRolls or {}) do
+    if e.seq > (cursor or 0) then return e end
+  end
+end
+
+local function encodeH(e)
+  local head = ("H|%d|%s|%s|%s|%s|%s|%s|%s|%s|%s|"):format(e.seq, cutBytes(e.t, 14), e.item or 0, e.final or "-",
+    e.personal or "-", e.Nme or "-", e.Nrival or "-", cutBytes(e.top, 30), cutBytes(e.place, 36), cutBytes(e.boss, 36))
+  return head .. cutBytes(e.reason, 250 - #head)
+end
+
+local function tick()
+  if not collectorInParty() or not NS.SendRaw then
+    if ticker then ticker:Cancel(); ticker = nil end
+    return
+  end
   if InCombatLockdown() then return end
-  for _, msg in ipairs(outbox) do NS.SendRaw(msg) end
-  wipe(outbox)
+  local e = nextToSend()
+  if not e then
+    if ticker then ticker:Cancel(); ticker = nil end
+    return
+  end
+  NS.SendRaw(encodeH(e))
+  cursor = e.seq
 end
 
-function NS.OnRemoteLog(name, rest)
-  local item, final, personal, nme, nrival, top = rest:match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$")
-  if not item then return end
-  local m
-  for _, pm in ipairs(NS.Party) do if pm.name == name then m = pm end end
-  NS.Log("friendRoll", {
-    from = name, class = m and m.class, level = m and m.level,
-    item = tonumber(item), final = final, personal = personal,
-    Nme = tonumber(nme), Nrival = tonumber(nrival), top = top,
-  })
+function NS.KickSync()
+  if ticker or not cursor or not collectorInParty() then return end
+  if not nextToSend() then return end
+  if C_Timer.NewTicker then ticker = C_Timer.NewTicker(1.5, function() NS.Safe(tick) end) end
 end
+
+function NS.OnAck(sender, rest)
+  local target, seq = rest:match("^([^|]+)|(%d+)$")
+  if not target or target ~= UnitName("player") then return end
+  collectorName = sender
+  seq = tonumber(seq)
+  if not cursor or seq > cursor or not ticker then cursor = seq end
+  NS.KickSync()
+end
+
+-- 받는 쪽 (수집자) ------------------------------------------------------
+function NS.SendAck(memberName)
+  if not NS.db.collector or not NS.SendRaw then return end
+  local got = NS.db.collectedSeq and NS.db.collectedSeq[memberName] or 0
+  NS.SendRaw(("A|%s|%d"):format(memberName, got))
+end
+
+function NS.OnHistory(sender, rest)
+  if not NS.db.collector then return end
+  local seq, t, item, final, personal, nme, nrival, top, place, boss, reason =
+    rest:match("^(%d+)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)$")
+  if not seq then return end
+  seq = tonumber(seq)
+  local db = NS.db
+  db.collected = db.collected or {}
+  db.collectedSeq = db.collectedSeq or {}
+  if seq <= (db.collectedSeq[sender] or 0) then return end
+  db.collected[sender] = db.collected[sender] or {}
+  local m
+  for _, pm in ipairs(NS.Party) do if pm.name == sender then m = pm end end
+  table.insert(db.collected[sender], {
+    seq = seq, t = t, item = tonumber(item), final = final, personal = personal,
+    Nme = tonumber(nme), Nrival = tonumber(nrival), top = top, place = place, boss = boss, reason = reason,
+    class = m and m.class, level = m and m.level,
+  })
+  db.collectedSeq[sender] = seq
+end
+
+-- 예전 0.4.1 판정 요약(L) 메시지는 무시한다
+function NS.OnRemoteLog() end
 
 ---------------------------------------------------------------------------
 -- 그 밖의 기록: 접속 정보, 보스, 파티 구성, 획득 메시지
@@ -129,7 +217,7 @@ f:SetScript("OnEvent", function(_, event, ...)
       NS.Log("boss", { id = encounterID, name = encounterName, kill = (success == 1) or nil })
     end
   elseif event == "PLAYER_REGEN_ENABLED" then
-    NS.Safe(NS.FlushOutbox)
+    NS.Safe(NS.KickSync)
   elseif event == "CHAT_MSG_LOOT" then
     local text = ...
     if NS.GetLocation() == "DUNGEON" and type(text) == "string" and not NS.IsSecret(text) then

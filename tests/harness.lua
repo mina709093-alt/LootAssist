@@ -43,9 +43,19 @@ InCombatLockdown = function() return false end
 GetBuildInfo = function() return "1.60.1", "70938" end
 
 -- toc 순서로 불러오기 (UI 제외)
+function __loadNS()
+  local NS = {}
+  for _, f in ipairs(__FILES) do
+    local chunk = assert(loadfile(ADDON_DIR .. f))
+    chunk("LootAssist", NS)
+  end
+  NS.db = { chars = {}, minimap = {}, window = {} }
+  return NS
+end
 local NS = {}
-for _, f in ipairs({ "Core/Init.lua", "Data/Classes.lua", "Data/Weights.lua", "Core/Specs.lua", "Data/Dungeons.lua", "Core/Dungeons.lua",
-                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua", "Collect/Party.lua", "Engine/PartyEval.lua", "Engine/Advisor.lua", "Core/TestLog.lua" }) do
+__FILES = { "Core/Init.lua", "Data/Classes.lua", "Data/Weights.lua", "Core/Specs.lua", "Data/Dungeons.lua", "Core/Dungeons.lua",
+                     "Engine/ItemReader.lua", "Engine/Eligibility.lua", "Engine/PersonalEval.lua", "Collect/Party.lua", "Engine/PartyEval.lua", "Engine/Advisor.lua", "Core/TestLog.lua" }
+for _, f in ipairs(__FILES) do
   local chunk = assert(loadfile(ADDON_DIR .. f))
   chunk("LootAssist", NS)
 end
@@ -133,4 +143,35 @@ if arg[5] == "log" then
     if e.reasons then print("   reasons:", table.concat(e.reasons, " | ")) end
     if e.rivals then print("   rivals:", table.concat(e.rivals, " | ")) end
   end
+end
+
+if arg[5] == "sync" then
+  -- 친구(UnitName = "테스트")가 수집자 없이 주사위 3번 → 나중에 수집자 "상수"와 파티
+  local tickers = {}
+  C_Timer.NewTicker = function(_, fn) local t = { fn = fn, Cancel = function(self) self.dead = true end }; tickers[#tickers + 1] = t; return t end
+  local friend = NS
+  local collector = __loadNS()
+  collector.db.collector = true
+  local links = {}
+  for _, l in pairs(P.rolls) do links[#links + 1] = l; if #links == 3 then break end end
+  for _, l in ipairs(links) do friend.LogRoll(l, friend.Advise(l)) end
+  print("친구 보관:", #friend.db.myRolls)
+  -- 파티 결성
+  friend.Party = { { name = "상수", class = "SHAMAN", level = 27 } }
+  collector.Party = { { name = "테스트", class = P.class, level = 25 } }
+  friend.SendRaw = function(m) local k, rest = m:match("^(%u)|(.*)$"); if k == "H" then collector.OnHistory("테스트", rest) end end
+  collector.SendRaw = function(m) local k, rest = m:match("^(%u)|(.*)$"); if k == "A" then friend.OnAck("상수", rest) end end
+  collector.SendAck("테스트")           -- 친구의 S 메시지를 받았을 때 하는 일
+  for _ = 1, 10 do for _, t in ipairs(tickers) do if not t.dead then t.fn() end end end
+  print("수집자가 받은 것:", #(collector.db.collected["테스트"] or {}))
+  -- 파티 중 새 주사위 1번 더 → 바로 전송
+  friend.LogRoll(links[1], friend.Advise(links[1]))
+  for _ = 1, 3 do for _, t in ipairs(tickers) do if not t.dead then t.fn() end end end
+  print("새 주사위 후:", #(collector.db.collected["테스트"] or {}))
+  -- 다시 파티(재접속) → 중복 없이 이어 받기
+  collector.SendAck("테스트")
+  for _ = 1, 5 do for _, t in ipairs(tickers) do if not t.dead then t.fn() end end end
+  print("재파티 후(중복 없어야 함):", #(collector.db.collected["테스트"] or {}))
+  for _, e in ipairs(collector.db.collected["테스트"]) do print("  ", e.seq, e.item, e.final, e.Nme, e.place, e.reason) end
+  if #friend.errors + #collector.errors > 0 then print("ERRORS", friend.errors[1], collector.errors[1]) end
 end

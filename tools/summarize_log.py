@@ -37,6 +37,16 @@ for item, es in by_item.items():
         print('    %-8s %-12s 개인=%-10s N나=%s N파티=%s %s' % (who, e.get('final'), e.get('personal'), e.get('Nme'), e.get('Nrival'),
               (e.get('reasons') or {}).get(1, '') if isinstance(e.get('reasons'), dict) else ''))
 
+print('\n[수집: 친구들이 보관했다가 보내 준 판정]')
+for who, entries in (db.get('collected') or {}).items():
+    es = [entries[k] for k in sorted(entries)]
+    finals = defaultdict(int)
+    for e in es: finals[e.get('final')] += 1
+    print('- %s (%s %s레벨): %d건 %s' % (who, es[-1].get('class') if es else '', es[-1].get('level') if es else '', len(es), dict(finals)))
+    for e in es:
+        print('    #%s %s %s @%s/%s %-12s 개인=%-10s N나=%s N파티=%s 경쟁=%s | %s' % (e.get('seq'), e.get('t'), e.get('item'), e.get('place'), e.get('boss'),
+              e.get('final'), e.get('personal'), e.get('Nme'), e.get('Nrival'), e.get('top'), e.get('reason')))
+
 print('\n[획득 메시지]')
 for e in log:
     if e.get('k') == 'lootMsg':
