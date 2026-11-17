@@ -1,6 +1,6 @@
 -- 전리품 도우미 (LootAssist) - 코어
 local ADDON, NS = ...
-NS.VERSION = "0.4.2"
+NS.VERSION = "0.4.3"
 NS.TAG = "|cff66ccff[전리품 도우미]|r "
 
 function NS.Print(msg)
