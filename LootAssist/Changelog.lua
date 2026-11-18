@@ -2,6 +2,9 @@
 if not SangsuPack or not SangsuPack.RegisterChangelog then return end
 
 SangsuPack:RegisterChangelog("LootAssist", {
+  { ver = "0.4.4",
+    "창 색상을 상수팩 공통 스타일(상수 스타일)로 바꿨습니다. 어두운 청록빛 배경, 1px 검은 테두리, 강조색 #10D0A0.",
+  },
   { ver = "0.4.3",
     "상수팩 공통 모듈을 최신(4)으로 맞추고 업데이트 내역을 추가했습니다.",
   },

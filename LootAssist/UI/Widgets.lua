@@ -1,16 +1,18 @@
 -- 공용 위젯: 어두운 평면 스타일
 local _, NS = ...
 
+-- 상수 스타일 색 (Sangsu'sStyle UI 애드온과 같은 색)
 NS.Style = {
-  bg = { 0.06, 0.06, 0.08, 0.95 },
-  border = { 0.22, 0.22, 0.26, 1 },
-  panel = { 0.10, 0.10, 0.13, 1 },
-  btn = { 0.14, 0.14, 0.18, 1 },
-  btnHover = { 0.20, 0.20, 0.26, 1 },
-  selected = { 0.16, 0.40, 0.62, 1 },
-  disabled = { 0.10, 0.10, 0.12, 1 },
-  accent = { 0.40, 0.80, 1.00 },
-  muted = { 0.60, 0.60, 0.65 },
+  bg = { 0.035, 0.055, 0.065, 0.92 },
+  border = { 0, 0, 0, 1 },
+  panel = { 0.02, 0.035, 0.042, 1 },
+  btn = { 0.055, 0.085, 0.10, 1 },
+  btnHover = { 0.08, 0.12, 0.14, 1 },
+  btnEdge = { 0.20, 0.25, 0.28, 1 },
+  selected = { 0.045, 0.32, 0.26, 1 },
+  disabled = { 0.03, 0.045, 0.052, 1 },
+  accent = { 0.063, 0.816, 0.627 },
+  muted = { 0.55, 0.60, 0.63 },
 }
 
 local FLAT = "Interface\\Buttons\\WHITE8x8"
@@ -38,7 +40,7 @@ end
 function NS.MakeButton(parent, width, height, label, onClick)
   local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
   b:SetSize(width, height)
-  NS.ApplyFlat(b, NS.Style.btn)
+  NS.ApplyFlat(b, NS.Style.btn, NS.Style.btnEdge)
   b.text = NS.MakeText(b, 12)
   b.text:SetPoint("CENTER")
   b.text:SetJustifyH("CENTER")
@@ -52,6 +54,8 @@ function NS.MakeButton(parent, width, height, label, onClick)
     elseif self.hover then c = NS.Style.btnHover
     else c = NS.Style.btn end
     self:SetBackdropColor(c[1], c[2], c[3], c[4] or 1)
+    local e = (self.hover and self.enabledState) and NS.Style.accent or NS.Style.btnEdge
+    self:SetBackdropBorderColor(e[1], e[2], e[3], 1)
     if self.enabledState then self.text:SetTextColor(0.95, 0.95, 0.95)
     else self.text:SetTextColor(0.40, 0.40, 0.42) end
   end
