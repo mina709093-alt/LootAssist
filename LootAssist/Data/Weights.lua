@@ -46,9 +46,14 @@ NS.RatingKeysUnverified = {
 }
 
 -- 레이팅 몇 점이 1%인가
--- CRIT 14: 게임 측정 (치명타 +14 장비 착용 시 캐릭터 창 치명타 +1.0%, 2026-11-21)
+-- CRIT 14: 게임 측정 (34레벨 고양 주술사, 치명타 +14 장비 착용 시 캐릭터 창 치명타 +1.0%, 2026-11-21)
+--          다른 레벨에서도 같은지는 확인하지 못함
 -- HIT 10: WOWF BiS 페이지 상한 표기("장비 30 (3%)") 기준, 게임에서 측정하지 않음 (미검증)
 NS.RatingPerPct = { CRIT = 14, HIT = 10 }
+
+-- 적중 참고 상한(%) - 점수에는 쓰지 않고 툴팁 안내에만 쓴다
+-- 출처: WOWF BiS 페이지 "공격대 우두머리 상한" 표기(특성 보너스 포함 값). 던전 우두머리 기준은 확인하지 못함 (미검증)
+NS.HitCapRef = { MELEE = 8, SPELL = 17 }
 
 -- 점수에서 빼는 키 (저항력은 두 이름으로 중복 제공됨)
 NS.StatKeysIgnored = {
@@ -112,7 +117,8 @@ NS.Weights = {
   },
   SHAMAN = {
     ELEMENTAL = merge(CASTER, { NATURE = 1.0, FIRE = 0.3, DPS_WAND = 0 }),
-    ENHANCEMENT = merge(MELEE_STR, { INT = 0.2, SP = 0.2, DPS_RANGED = 0 }),
+    -- AGI 0.92: 게임 측정(34레벨 고양, 민첩 약 12 = 치명타 1%) × 치명타 1% 가중치 11 → 11 / 12. 민첩은 이 특성 전투력을 올리지 않음(측정)
+    ENHANCEMENT = merge(MELEE_STR, { AGI = 0.92, INT = 0.2, SP = 0.2, DPS_RANGED = 0 }),
     RESTORATION = merge(HEALER, { MP5 = 1.6, SPI = 0.2, DPS_WAND = 0 }),
   },
   MAGE = {

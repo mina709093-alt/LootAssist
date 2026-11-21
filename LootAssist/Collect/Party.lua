@@ -72,17 +72,38 @@ function NS.MemberInfo(member)
   if info.secondary and (member.level or 1) < NS.DUAL_SPEC_LEVEL then info.secondary = nil end
 
   if c and c.class == member.class and c.scores and (c.scores.P or c.scores.S) then
-    info.gearSource, info.commScores = "comm", c.scores
+    info.gearSource, info.commScores, info.commSlots = "comm", c.scores, c.slots
   elseif member.guid and NS.PartyInspect[member.guid] then
     info.gearSource, info.inspectLinks = "inspect", NS.PartyInspect[member.guid].links
   end
   return info
 end
 
+-- 반지·장신구: 통신으로 받은 칸별 아이템/점수가 두 칸 모두 있으면 칸별 교체 시나리오로 계산 (버전 2 이상)
+local PAIR_SLOTS = { INVTYPE_FINGER = { 11, 12 }, INVTYPE_TRINKET = { 13, 14 } }
+local function commPair(info, item, which)
+  local slots = PAIR_SLOTS[item.equipLoc or ""]
+  local t = slots and info.commSlots and info.commSlots[which]
+  if not t then return nil end
+  local equipped = {}
+  for i, slot in ipairs(slots) do
+    local e = t[slot]
+    if not e then return nil end
+    equipped[i] = e.empty and false or { itemID = e.id, s = e.s }
+  end
+  local best, plan = NS.PairOptions(item, slots, equipped, function(e) return e and e.s or 0 end)
+  if not best then return nil, "UNIQUE" end
+  return best.cur, nil, best.filled, plan
+end
+
 -- 파티원의 같은 칸 현재 장비 점수
 function NS.MemberCurrentScore(info, item, specKey)
   if info.gearSource == "comm" then
     local which = (specKey == info.primary and "P") or (specKey == info.secondary and "S") or nil
+    if which then
+      local cur, why, filled, plan = commPair(info, item, which)
+      if cur ~= nil or why then return cur, why, filled, plan end
+    end
     local t = which and info.commScores[which]
     local cat = NS.LocCategory(item.equipLoc)
     if t and cat and t[cat] ~= nil then

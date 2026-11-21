@@ -49,6 +49,12 @@ local function addLines(tooltip, link)
     local keep = itemName(s.keep)
     if keep then tooltip:AddLine("  교체 후 함께 쓰는 것: " .. keep, 0.78, 0.78, 0.78, true) end
   end
+  -- 적중: 바꾼 뒤 장비 합계 (특성 보너스는 모름)와 참고 상한
+  local h = r.hit
+  if h then
+    tooltip:AddLine(("  적중: 바꾼 뒤 장비 합계 %.1f%% (참고 상한 %s %d%%, 특성 보너스 포함 값)")
+      :format(h.after, h.spell and "주문" or "근접", h.cap), 0.78, 0.78, 0.78, true)
+  end
 end
 
 local function onItemTooltip(tooltip)

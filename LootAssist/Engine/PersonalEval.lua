@@ -124,6 +124,7 @@ local function pairOptions(item, slots, equipped, score)
   return best, { pair = true, total = total, options = opts, sameEquipped = same,
                  slot = best and best.slot, old = best and best.old }
 end
+NS.PairOptions = pairOptions
 
 -- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명, 세 번째 값은 칸에 장비가 있는지,
 -- 네 번째 값은 교체 계획 { slot, old, total, pair, options, sameEquipped } (알 수 있을 때만)
@@ -344,6 +345,20 @@ function NS.EvaluateForMe(link, opts)
     end
     res.swap = { slot = plan.slot, label = NS.SLOT_LABEL[plan.slot], old = plan.old, keep = keep }
   end
+  -- 적중 안내 (점수에는 영향 없음): 바꾼 뒤 장비 적중 합계와 참고 상한
+  local W = NS.GetWeights(me.class, mainSpec.key) or {}
+  if (item.stats.HITPCT or 0) > 0 and (W.HITPCT or 0) > 0 and plan then
+    local function hitOf(it) return (it and it.stats and it.stats.HITPCT) or 0 end
+    local sum = 0
+    for slot = 1, 18 do
+      local l = GetInventoryItemLink("player", slot)
+      if l and not NS.IsSecret(l) then sum = sum + hitOf(NS.ReadItem(l)) end
+    end
+    local spell = (mainSpec.role == "CASTER" or mainSpec.role == "HEALER")
+    res.hit = { after = sum - hitOf(plan.old) - hitOf(plan.both) + item.stats.HITPCT,
+                cap = spell and NS.HitCapRef.SPELL or NS.HitCapRef.MELEE, spell = spell }
+  end
+
   if res.equippedCopy and key ~= "GREED" then
     res.reasons[#res.reasons + 1] = "같은 아이템을 이미 하나 착용 중입니다 (고유 아님, 하나 더 착용 가능)"
   end

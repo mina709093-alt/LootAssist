@@ -1,10 +1,12 @@
 -- 애드온 통신: 같은 애드온을 쓰는 파티원끼리 직업·특성·칸별 현재 장비 점수를 자동으로 주고받는다
 -- 전투 중에는 보내지 않고, 전투가 끝나면 보낸다. 채팅창에는 아무것도 표시되지 않는다.
 -- 메시지: S|버전|직업|레벨|주특성|부특성   P|칸점수...(주 특성)   Q|칸점수...(부 특성)   R|1 (다시 보내 달라는 요청)
+--         X|P 또는 X|S|칸=아이템번호:점수,...  (버전 2부터: 반지·장신구·무기 칸별 아이템과 점수. 이전 버전은 모르는 메시지라 무시함)
 local _, NS = ...
 
 local PREFIX = "LootAssist"
-local VERSION = 1
+local VERSION = 2
+local SLOT_DETAIL = { 11, 12, 13, 14, 16, 17 }
 local pending = false
 local scheduled = false
 
@@ -44,6 +46,25 @@ local function encodeScores(specKey)
   return table.concat(parts, ",")
 end
 
+-- 칸별 아이템 번호와 점수 (빈 칸 = 0:0). 아직 못 읽은 칸은 빼고 보낸다.
+local function encodeSlots(specKey)
+  local me = NS.GetPlayerInfo()
+  local parts = {}
+  for _, slot in ipairs(SLOT_DETAIL) do
+    local link = GetInventoryItemLink("player", slot)
+    if not link then
+      parts[#parts + 1] = ("%d=0:0"):format(slot)
+    elseif not NS.IsSecret(link) then
+      local it = NS.ReadItem(link)
+      if it then
+        local s = NS.SpecScore(it, me.class, specKey) or 0
+        parts[#parts + 1] = ("%d=%d:%.1f"):format(slot, it.itemID, s)
+      end
+    end
+  end
+  return table.concat(parts, ",")
+end
+
 function NS.BroadcastMe()
   if not channel() then return end
   if InCombatLockdown() then pending = true; return end
@@ -51,8 +72,8 @@ function NS.BroadcastMe()
   local me = NS.GetPlayerInfo()
   local p, s = NS.GetActiveSpecs()
   send(("S|%d|%s|%d|%s|%s"):format(VERSION, me.class or "?", me.level or 1, p or "-", s or "-"))
-  if p then send("P|" .. encodeScores(p)) end
-  if s then send("Q|" .. encodeScores(s)) end
+  if p then send("P|" .. encodeScores(p)); send("X|P|" .. encodeSlots(p)) end
+  if s then send("Q|" .. encodeScores(s)); send("X|S|" .. encodeSlots(s)) end
 end
 
 -- 여러 이벤트가 몰려도 2초에 한 번만 보낸다
@@ -81,7 +102,7 @@ local function onMessage(msg, sender)
     local ver, cls, lvl, p, s = rest:match("^(%d+)|(%u+)|(%d+)|([^|]*)|([^|]*)$")
     if not ver then return end
     c = c or {}
-    if c.primary ~= p or c.secondary ~= s then c.scores = nil end
+    if c.primary ~= p or c.secondary ~= s then c.scores = nil; c.slots = nil end
     c.version, c.class, c.level = tonumber(ver), cls, tonumber(lvl)
     c.primary = (p ~= "-" and p ~= "") and p or nil
     c.secondary = (s ~= "-" and s ~= "") and s or nil
@@ -97,6 +118,16 @@ local function onMessage(msg, sender)
     end
     c.scores = c.scores or {}
     c.scores[kind == "P" and "P" or "S"] = t
+  elseif kind == "X" and c then
+    local which, body = rest:match("^([PS])|(.*)$")
+    if not which then return end
+    local t = {}
+    for slot, id, v in body:gmatch("(%d+)=(%d+):([%d%.%-]+)") do
+      slot, id = tonumber(slot), tonumber(id)
+      t[slot] = { id = (id > 0) and id or nil, s = tonumber(v) or 0, empty = (id == 0) }
+    end
+    c.slots = c.slots or {}
+    c.slots[which] = t
   elseif kind == "A" then
     if NS.OnAck then NS.OnAck(name, rest) end
     return
