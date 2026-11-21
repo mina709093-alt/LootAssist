@@ -90,7 +90,44 @@ local function readEquipped(slot, getLink)
   return it
 end
 
--- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명, 세 번째 값은 칸에 장비가 있는지
+-- 칸 이름 (교체 대상 표시용)
+NS.SLOT_LABEL = {
+  [1] = "머리", [2] = "목", [3] = "어깨", [5] = "가슴", [6] = "허리", [7] = "다리", [8] = "발",
+  [9] = "손목", [10] = "손", [11] = "반지 1", [12] = "반지 2", [13] = "장신구 1", [14] = "장신구 2",
+  [15] = "등", [16] = "주무기", [17] = "보조장비", [18] = "원거리",
+}
+
+-- 두 칸 부위(반지, 장신구, 쌍수 한손 무기): 칸마다 "이 칸을 새 아이템으로 바꾸는" 시나리오를 만든다.
+-- 고유 아이템은 다른 칸에 같은 아이템이 있으면 그 칸으로는 바꿀 수 없다(같은 고유 아이템 두 개 착용 불가).
+-- equipped[i] = 칸 i의 아이템(false = 빈 칸)
+local function pairOptions(item, slots, equipped, score)
+  local opts, total, same = {}, 0, false
+  for i = 1, #slots do
+    total = total + score(equipped[i] or nil)
+    if equipped[i] and item.itemID and equipped[i].itemID == item.itemID then same = true end
+  end
+  for i, slot in ipairs(slots) do
+    local blocked = false
+    if item.unique and item.itemID then
+      for j = 1, #slots do
+        if j ~= i and equipped[j] and equipped[j].itemID == item.itemID then blocked = true end
+      end
+    end
+    opts[#opts + 1] = { slot = slot, cur = score(equipped[i] or nil), filled = (equipped[i] ~= false),
+                        old = equipped[i] or nil, blocked = blocked }
+  end
+  -- 바꿀 수 있는 칸 중 점수가 가장 낮은 칸 = 바꿨을 때 조합 점수가 가장 높아지는 칸
+  local best
+  for _, o in ipairs(opts) do
+    if not o.blocked and (not best or o.cur < best.cur) then best = o end
+  end
+  return best, { pair = true, total = total, options = opts, sameEquipped = same,
+                 slot = best and best.slot, old = best and best.old }
+end
+
+-- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명, 세 번째 값은 칸에 장비가 있는지,
+-- 네 번째 값은 교체 계획 { slot, old, total, pair, options, sameEquipped } (알 수 있을 때만)
+-- 두 번째 값 "UNIQUE" = 고유 아이템이라 바꿀 수 있는 칸이 없음
 -- getLink(slot) 를 주면 그 장비(살펴보기로 읽은 파티원 장비 등)로 계산한다
 function NS.CurrentSlotScore(item, classFile, specKey, getLink)
   local W = NS.GetWeights(classFile, specKey) or {}
@@ -108,34 +145,48 @@ function NS.CurrentSlotScore(item, classFile, specKey, getLink)
   if loc == "INVTYPE_2HWEAPON" then
     local oh = readEquipped(17)
     if oh == nil then return nil, "loading" end
-    return score(mh) + score(oh or nil), nil, (mh ~= false or oh ~= false)
+    local total = score(mh) + score(oh or nil)
+    return total, nil, (mh ~= false or oh ~= false), { slot = 16, old = mh or nil, total = total, both = (oh or nil) }
   elseif loc == "INVTYPE_WEAPONOFFHAND" or loc == "INVTYPE_SHIELD" or loc == "INVTYPE_HOLDABLE" then
     if mhIs2H then return nil, "TWOHAND" end
     local oh = readEquipped(17)
     if oh == nil then return nil, "loading" end
-    return score(oh or nil), nil, (oh ~= false)
+    local s = score(oh or nil)
+    return s, nil, (oh ~= false), { slot = 17, old = oh or nil, total = s }
   elseif loc == "INVTYPE_WEAPON" then
-    if mhIs2H then return score(mh), nil, true end
+    if mhIs2H then
+      local s = score(mh)
+      return s, nil, true, { slot = 16, old = mh, total = s, replaces2H = true }
+    end
     local a = score(mh or nil)
     if W.dualWield then
       local oh = readEquipped(17)
       if oh == nil then return nil, "loading" end
-      if oh and oh.isWeapon then return math.min(a, score(oh)), nil, true end
-      if not oh then return 0, nil, false end
+      if oh and oh.isWeapon then
+        local best, plan = pairOptions(item, { 16, 17 }, { mh, oh }, score)
+        if not best then return nil, "UNIQUE" end
+        return best.cur, nil, true, plan
+      end
+      if not oh then return 0, nil, false, { slot = 17, total = a } end
     end
-    return a, nil, (mh ~= false)
+    return a, nil, (mh ~= false), { slot = 16, old = mh or nil, total = a }
   end
 
   local slots = NS.SLOTS[loc]
   if not slots then return nil, "invalid" end
-  local lowest, lowestFilled
-  for _, slot in ipairs(slots) do
+  local equipped = {}
+  for i, slot in ipairs(slots) do
     local it, state = readEquipped(slot)
     if it == nil then return nil, state end
-    local s = score(it or nil)
-    if not lowest or s < lowest then lowest, lowestFilled = s, (it ~= false) end
+    equipped[i] = it
   end
-  return lowest or 0, nil, lowestFilled
+  if #slots == 1 then
+    local s = score(equipped[1] or nil)
+    return s, nil, (equipped[1] ~= false), { slot = slots[1], old = equipped[1] or nil, total = s }
+  end
+  local best, plan = pairOptions(item, slots, equipped, score)
+  if not best then return nil, "UNIQUE" end
+  return best.cur, nil, best.filled, plan
 end
 
 local function topStats(parts, n)
@@ -182,8 +233,13 @@ function NS.EvaluateForMe(link, opts)
   res.eligibility = el
   if el.notGear then res.reasons[1] = el.reason; return finish(res, "NOT_GEAR") end
   if not el.ok then res.reasons[1] = el.reason; return finish(res, "GREED") end
+  local pairLoc = (item.equipLoc == "INVTYPE_FINGER" or item.equipLoc == "INVTYPE_TRINKET")
   if not (opts and opts.ignoreEquipped) and isEquipped(link) then
-    res.reasons[1] = "지금 착용하고 있는 아이템입니다"; return finish(res, "EQUIPPED")
+    -- 반지/장신구는 고유가 아니면 같은 것을 하나 더 낄 수 있으므로 계속 평가한다
+    if not pairLoc or item.unique then
+      res.reasons[1] = "지금 착용하고 있는 아이템입니다"; return finish(res, "EQUIPPED")
+    end
+    res.equippedCopy = true
   end
 
   local primary, secondary = NS.GetActiveSpecs()
@@ -195,17 +251,23 @@ function NS.EvaluateForMe(link, opts)
   local function evalSpec(spec)
     local new, parts = NS.SpecScore(item, me.class, spec.key)
     new = new or 0
-    local cur, why, filled = NS.CurrentSlotScore(item, me.class, spec.key)
+    local cur, why, filled, plan = NS.CurrentSlotScore(item, me.class, spec.key)
+    local slotGain = gainOf(new, cur)
+    local gain = slotGain
+    -- 두 칸 부위는 "두 칸 합(조합)" 기준으로 얼마나 좋아지는지 본다 (한 칸만 기준으로 하면 상승률이 부풀려짐)
+    if plan and plan.pair and cur ~= nil and (plan.total or 0) > 0 then
+      gain = (new - cur) / plan.total
+    end
     return {
-      new = new, parts = parts or {}, cur = cur, why = why, filled = filled,
+      new = new, parts = parts or {}, cur = cur, why = why, filled = filled, plan = plan,
       fit = NS.SpecFit(item, me.class, spec.key, maxScore),
-      gain = gainOf(new, cur),
+      gain = gain, slotGain = slotGain,
     }
   end
   local P = evalSpec(pSpec)
   local S = sSpec and evalSpec(sSpec) or nil
-  res.fitP, res.gainP = P.fit, P.gain
-  if S then res.fitS, res.gainS = S.fit, S.gain end
+  res.fitP, res.gainP, res.slotGainP = P.fit, P.gain, P.slotGain
+  if S then res.fitS, res.gainS, res.slotGainS = S.fit, S.gain, S.slotGain end
 
   if item.reqLevel > me.level then
     res.reasons[#res.reasons + 1] = ("%d레벨부터 착용할 수 있습니다"):format(item.reqLevel)
@@ -213,7 +275,11 @@ function NS.EvaluateForMe(link, opts)
 
   local E = NS.EVAL
   local key
-  if P.why == "TWOHAND" then
+  local uniqueWorn = item.unique and P.plan and P.plan.sameEquipped
+  if uniqueWorn or P.why == "UNIQUE" then
+    key = "GREED"
+    res.reasons[#res.reasons + 1] = "고유 아이템이라 하나만 착용할 수 있는데, 같은 아이템을 이미 착용하고 있습니다"
+  elseif P.why == "TWOHAND" then
     if P.fit >= E.FIT then
       key = "BID_WEAK"
       res.reasons[#res.reasons + 1] = ("%s(%s)에 맞는 보조장비지만, 지금은 양손 무기를 써서 한손 무기와 함께 써야 합니다"):format("주 특성", pSpec.name)
@@ -243,7 +309,7 @@ function NS.EvaluateForMe(link, opts)
   local mainSpec = res.usedSecondary and sSpec or pSpec
   local which = res.usedSecondary and "부 특성" or "주 특성"
   local stats = topStats(main.parts, 2)
-  if key == "GREED" and P.gain ~= nil and P.why ~= "TWOHAND" then
+  if key == "GREED" and P.gain ~= nil and P.why ~= "TWOHAND" and not uniqueWorn then
     if maxScore <= 0 then
       res.reasons[#res.reasons + 1] = "점수에 넣을 능력치가 없습니다 (저항력 등은 제외)"
     elseif P.fit < E.FIT and (not S or S.fit < E.FIT) then
@@ -254,7 +320,9 @@ function NS.EvaluateForMe(link, opts)
   elseif key ~= "GREED" and main.gain ~= nil then
     local pct = math.floor(main.gain * 100 + 0.5)
     local gainText
-    if (main.cur or 0) > 0 then gainText = ("현재 장비보다 약 %d%% 좋습니다"):format(pct)
+    local isPair = main.plan and main.plan.pair
+    if (main.cur or 0) > 0 and isPair then gainText = ("두 칸 조합 기준 약 %d%% 좋아집니다"):format(pct)
+    elseif (main.cur or 0) > 0 then gainText = ("현재 장비보다 약 %d%% 좋습니다"):format(pct)
     elseif main.filled then gainText = "지금 장비는 이 특성에 쓸모 있는 능력치가 없습니다"
     else gainText = "비어 있는 칸을 채웁니다" end
     if stats ~= "" then
@@ -265,6 +333,19 @@ function NS.EvaluateForMe(link, opts)
     if main.fit < E.FIT then
       res.reasons[#res.reasons + 1] = "특성에 맞는 능력치는 적지만 지금 장비보다는 낫습니다"
     end
+  end
+
+  -- 두 칸 부위: 어느 칸을 바꾸는지 (툴팁 표시용)
+  local plan = main.plan
+  if plan and plan.pair and plan.slot and key ~= "GREED" then
+    local keep
+    for _, o in ipairs(plan.options) do
+      if o.slot ~= plan.slot then keep = o.old end
+    end
+    res.swap = { slot = plan.slot, label = NS.SLOT_LABEL[plan.slot], old = plan.old, keep = keep }
+  end
+  if res.equippedCopy and key ~= "GREED" then
+    res.reasons[#res.reasons + 1] = "같은 아이템을 이미 하나 착용 중입니다 (고유 아님, 하나 더 착용 가능)"
   end
 
   if el.nonPrimaryArmor then

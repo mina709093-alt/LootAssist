@@ -9,8 +9,24 @@ ev:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 ev:RegisterEvent("PLAYER_LEVEL_UP")
 ev:SetScript("OnEvent", function() cache.link = nil end)
 
+-- 캐릭터 창의 장비 칸에 마우스를 올린 경우 (지금 끼고 있는 바로 그 아이템)
+local function onCharacterSlot(tooltip)
+  if not tooltip.GetOwner then return false end
+  local ok, owner = pcall(tooltip.GetOwner, tooltip)
+  if not ok or not owner or not owner.GetName then return false end
+  local ok2, name = pcall(owner.GetName, owner)
+  if not ok2 or type(name) ~= "string" or NS.IsSecret(name) then return false end
+  return name:find("^Character.+Slot$") ~= nil
+end
+
+local function itemName(it)
+  if not it then return nil end
+  return it.link or it.name
+end
+
 local function addLines(tooltip, link)
   if not NS.db or NS.db.tooltip == false then return end
+  if onCharacterSlot(tooltip) then return end
   local now = GetTime()
   local r
   if cache.link == link and now - cache.time < 1.5 and cache.result then
@@ -24,6 +40,14 @@ local function addLines(tooltip, link)
   tooltip:AddLine("|cff66ccff전리품 도우미:|r " .. r.colored)
   for i = 1, math.min(#r.reasons, 3) do
     tooltip:AddLine("  " .. r.reasons[i], 0.78, 0.78, 0.78, true)
+  end
+  -- 반지/장신구/쌍수 무기: 어느 칸을 바꾸는지
+  local s = r.swap
+  if s and s.label then
+    local old = itemName(s.old)
+    tooltip:AddLine(("  교체 대상: %s%s"):format(s.label, old and (" " .. old) or " (빈 칸)"), 0.78, 0.78, 0.78, true)
+    local keep = itemName(s.keep)
+    if keep then tooltip:AddLine("  교체 후 함께 쓰는 것: " .. keep, 0.78, 0.78, 0.78, true) end
   end
 end
 

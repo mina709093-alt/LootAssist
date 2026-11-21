@@ -33,8 +33,10 @@ function NS.EvaluateParty(item)
         local U = 1
         r.gearKnown = false
         if not r.specUnknown then
-          local cur, why = NS.MemberCurrentScore(info, item, best.spec.key)
-          if cur ~= nil then
+          local cur, why, _, plan = NS.MemberCurrentScore(info, item, best.spec.key)
+          if cur ~= nil and item.unique and plan and plan.sameEquipped then
+            r.gearKnown, U = true, 0 -- 같은 고유 아이템을 이미 착용 중
+          elseif cur ~= nil then
             r.gearKnown = true
             local new = NS.SpecScore(item, m.class, best.spec.key) or 0
             local g
@@ -43,6 +45,8 @@ function NS.EvaluateParty(item)
             U = (g <= 0) and 0 or (1 + math.min(g, 1))
           elseif why == "TWOHAND" then
             r.gearKnown, U = true, 0.5
+          elseif why == "UNIQUE" then
+            r.gearKnown, U = true, 0 -- 같은 고유 아이템을 이미 착용 중
           end
         end
         r.nonPrimaryArmor = el.nonPrimaryArmor

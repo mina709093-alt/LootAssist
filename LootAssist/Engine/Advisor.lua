@@ -46,7 +46,9 @@ function NS.Advise(link)
   local top = rivals[1]
   local Nrival = top and top.N or 0
   local fitMe = p.usedSecondary and ((p.fitS or 0) * E.SECONDARY_WEIGHT) or (p.fitP or 0)
-  local gainMe = p.usedSecondary and p.gainS or p.gainP
+  -- 파티원 쪽은 칸 하나 기준 상승률만 알 수 있으므로, 비교할 때는 내 것도 칸 하나 기준을 쓴다
+  local gainMe
+  if p.usedSecondary then gainMe = p.slotGainS or p.gainS else gainMe = p.slotGainP or p.gainP end
   local Pme = (p.eligibility and p.eligibility.nonPrimaryArmor) and 0.6 or 1
   local Ume = (gainMe == nil) and 1 or ((gainMe <= 0) and 0.2 or (1 + math.min(gainMe, 1)))
   local Nme = fitMe * Pme * Ume

@@ -37,6 +37,19 @@ NS.StatKeysUnverified = {
   ITEM_MOD_EXPERTISE_RATING_SHORT = "EXP",
 }
 
+-- 레이팅 키: 값은 레이팅 점수이고, 아래 환산표로 %로 바꿔 HITPCT / CRITPCT 에 더한다
+NS.RatingKeys = {
+  ITEM_MOD_CRIT_RATING_SHORT = "CRIT", -- "치명타 및 극대화" (실측: LootAssistDB.unknownStats, 아이템 1263)
+}
+NS.RatingKeysUnverified = {
+  ITEM_MOD_HIT_RATING_SHORT = "HIT",
+}
+
+-- 레이팅 몇 점이 1%인가
+-- CRIT 14: 게임 측정 (치명타 +14 장비 착용 시 캐릭터 창 치명타 +1.0%, 2026-11-21)
+-- HIT 10: WOWF BiS 페이지 상한 표기("장비 30 (3%)") 기준, 게임에서 측정하지 않음 (미검증)
+NS.RatingPerPct = { CRIT = 14, HIT = 10 }
+
 -- 점수에서 빼는 키 (저항력은 두 이름으로 중복 제공됨)
 NS.StatKeysIgnored = {
   RESISTANCE1_NAME = true, RESISTANCE2_NAME = true, RESISTANCE3_NAME = true,
