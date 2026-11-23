@@ -1,4 +1,4 @@
--- 주사위 창이 뜨면 최종 추천(개인 + 파티)을 채팅창에 미리 보여 준다 (주사위 창 강조는 6단계에서)
+-- 주사위 창이 뜨면 최종 추천(개인 + 파티)을 채팅창에 미리 보여 주고, 주사위 창에도 강조한다 (UI/RollHighlight.lua)
 -- 입찰/차비 버튼은 누르지 않는다.
 local _, NS = ...
 
@@ -18,6 +18,7 @@ local function report(rollID, tries)
     for i = 2, math.min(#r.reasons, 3) do NS.Print("    " .. r.reasons[i]) end
   end
   NS.lastShare = NS.ShareText(r, link)
+  if NS.SetRollAdvice then NS.Safe(NS.SetRollAdvice, rollID, r) end
   if NS.LogRoll then NS.Safe(NS.LogRoll, link, r) end
 end
 
