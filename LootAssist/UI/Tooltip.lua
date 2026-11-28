@@ -4,6 +4,7 @@ local _, NS = ...
 -- 툴팁은 자주 다시 그려지므로 같은 아이템은 잠깐 결과를 재사용
 local cache = { link = nil, time = 0, result = nil }
 NS.On("SPEC_CHANGED", function() cache.link = nil end)
+NS.On("HIT_BONUS_CHANGED", function() cache.link = nil end)
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 ev:RegisterEvent("PLAYER_LEVEL_UP")
@@ -62,11 +63,16 @@ local function addLines(tooltip, link)
     local keep = itemName(s.keep)
     if keep then tooltip:AddLine("  교체 후 함께 쓰는 것: " .. keep, 0.78, 0.78, 0.78, true) end
   end
-  -- 적중: 바꾼 뒤 장비 합계 (특성 보너스는 모름)와 참고 상한
+  -- 적중: 바꾼 뒤 합계(장비 + 직접 입력한 특성 보너스)와 상한. 상한을 넘는 적중은 점수에 넣지 않음
   local h = r.hit
   if h then
-    tooltip:AddLine(("  적중: 바꾼 뒤 장비 합계 %.1f%% (참고 상한 %s %d%%, 특성 보너스 포함 값)")
-      :format(h.after, h.spell and "주문" or "근접", h.cap), 0.78, 0.78, 0.78, true)
+    local src = (h.bonus > 0) and ("장비 %.1f + 특성 %.1f"):format(h.gear, h.bonus) or "장비만, 특성 보너스는 /전리품 적중"
+    tooltip:AddLine(("  적중: 바꾼 뒤 %.1f%% (%s) / 상한 %s %d%%")
+      :format(h.after, src, h.spell and "주문" or "근접", h.cap), 0.78, 0.78, 0.78, true)
+    if h.cut > 0.05 then
+      tooltip:AddLine(("  |cffffd24d상한을 넘는 적중 %.1f%%는 점수에 넣지 않았습니다|r"):format(h.cut),
+        0.78, 0.78, 0.78, true)
+    end
   end
 end
 

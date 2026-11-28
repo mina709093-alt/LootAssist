@@ -193,6 +193,20 @@ SlashCmdList.LOOTASSIST = function(msg)
   elseif cmd == "비교" or cmd == "compare" then
     local on = NS.ToggleRollCompare and NS.ToggleRollCompare()
     NS.Print("주사위 아이템 비교(지금 끼고 있는 아이템 같이 보기) " .. (on and "켬" or "끔"))
+  elseif cmd == "적중" or cmd == "hit" then
+    -- 특성·종족 적중 보너스(%)를 직접 입력 (게임에서 읽지 못함). 이 캐릭터에만 저장
+    local n = rest and tonumber((rest:gsub("%%", "")))
+    if n and n >= 0 and n <= 20 then
+      NS.Char().hitBonus = n
+      NS.Fire("HIT_BONUS_CHANGED")
+      NS.Print(("특성 적중 보너스 %.1f%% 로 저장했습니다. 적중 상한 계산에 씁니다."):format(n))
+    elseif rest then
+      NS.Print("0~20 사이 숫자를 넣어 주세요. 예: /전리품 적중 3")
+    else
+      local eq = NS.EquippedHitSum and NS.EquippedHitSum()
+      NS.Print(("적중: 장비 %s + 특성 %.1f%% (특성 보너스는 /전리품 적중 [숫자] 로 입력)"):format(
+        eq and ("%.1f%%"):format(eq) or "읽는 중", NS.HitBonus()))
+    end
   elseif cmd == "공유" or cmd == "share" then
     NS.Safe(NS.OpenShareText)
   elseif cmd == "파티" or cmd == "party" then
@@ -233,6 +247,7 @@ SlashCmdList.LOOTASSIST = function(msg)
     NS.Print("/전리품 채팅 - 주사위가 뜰 때 채팅창 판정 알림 켜기/끄기")
     NS.Print("/전리품 강조 - 주사위 창에 추천 글자와 버튼 빛 켜기/끄기")
     NS.Print("/전리품 비교 - 주사위 아이템에 마우스를 올리면 끼고 있는 아이템도 보여 주기 켜기/끄기")
+    NS.Print("/전리품 적중 [숫자] - 특성·종족 적중 보너스(%) 입력, 숫자 없이 쓰면 지금 적중 보기")
     NS.Print("/전리품 파티 - 파티원 특성/장비 정보 출처 보기")
     NS.Print("/전리품 공유 - 마지막 주사위 판정 문장을 채팅 입력창에 넣기 (보내기는 직접)")
     NS.Print("/전리품 던전 - 현재 던전의 보스별 전리품 데이터 보기")

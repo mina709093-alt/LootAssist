@@ -56,8 +56,9 @@ NS.RatingKeysUnverified = {
 -- 두 값 모두 wowsims/forever ui/sim/constants/mechanics.ts(60레벨)와 같음 (2026-11-28 확인)
 NS.RatingPerPct = { CRIT = 14, HIT = 10 }
 
--- 적중 참고 상한(%) - 점수에는 쓰지 않고 툴팁 안내에만 쓴다
--- 출처: WOWF BiS 페이지 "공격대 우두머리 상한" 표기(특성 보너스 포함 값). 던전 우두머리 기준은 확인하지 못함 (미검증)
+-- 적중 상한(%, 특성 보너스 포함 값). 0.8.0부터 점수에 씀: 상한을 넘는 적중은 0점 (Engine/PersonalEval.lua NS.HitCapAdjust)
+-- 출처: WOWF BiS 페이지 "공격대 우두머리 상한" 표기, wowsims/forever 프리셋 주석(정기 17%, 고양 8%)과 같음.
+-- 63레벨 우두머리 기준. 원거리(사냥꾼)는 근접 값을 씀. 던전 우두머리·60레벨 미만 기준은 확인하지 못함 (미검증)
 NS.HitCapRef = { MELEE = 8, SPELL = 17 }
 
 -- 점수에서 빼는 키 (저항력은 두 이름으로 중복 제공됨)

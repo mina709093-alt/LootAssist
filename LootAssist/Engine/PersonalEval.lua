@@ -215,6 +215,45 @@ local function finish(res, key)
   return res
 end
 
+-- 적중 상한 반영 (0.8.0) ---------------------------------------------------
+local function hitOf(it) return (it and it.stats and it.stats.HITPCT) or 0 end
+
+-- 지금 낀 장비의 적중 합계(%). 못 읽은 칸이 있으면 nil
+function NS.EquippedHitSum(getLink)
+  local sum = 0
+  for slot = 1, 18 do
+    local l
+    if getLink then l = getLink(slot) else l = GetInventoryItemLink("player", slot) end
+    if l and not NS.IsSecret(l) then
+      local it = NS.ReadItem(l)
+      if not it then return nil end
+      sum = sum + hitOf(it)
+    end
+  end
+  return sum
+end
+
+-- 특성·종족 적중 보너스(%): 게임에서 읽지 못해 직접 입력한 값 (/전리품 적중 n)
+function NS.HitBonus()
+  local v = NS.db and NS.Char().hitBonus
+  return (type(v) == "number" and v > 0) and v or 0
+end
+
+-- 이 특성의 적중 상한(%): 주문 공격 특성은 주문, 나머지는 근접 상한
+function NS.HitCapFor(spec)
+  local spell = spec and (spec.role == "CASTER" or spec.role == "HEALER")
+  return spell and NS.HitCapRef.SPELL or NS.HitCapRef.MELEE, spell
+end
+
+-- 교체로 바뀌는 적중의 점수 보정. 선형 점수(적중 1% = w점)에 더하는 값.
+-- 상한을 넘는 적중은 0점이므로, 실제로 쓰이는 적중 변화량과 선형 계산의 차이를 돌려준다.
+-- before = 교체 전 적중(장비 + 특성 보너스), oldHit = 빠지는 아이템 적중, newHit = 새 아이템 적중
+function NS.HitCapAdjust(w, before, oldHit, newHit, cap)
+  local after = before - oldHit + newHit
+  local used = math.min(cap, after) - math.min(cap, before)
+  return w * (used - (newHit - oldHit)), after
+end
+
 local function isEquipped(link)
   local fn = C_Item and C_Item.IsEquippedItem or IsEquippedItem
   if not fn then return false end
@@ -252,10 +291,51 @@ function NS.EvaluateForMe(link, opts)
   local sSpec = NS.GetSpec(me.class, secondary)
 
   local maxScore = NS.MaxSpecScore(item)
+  local equippedHit -- 장비 적중 합계 (필요할 때 한 번만 읽음, false = 못 읽음)
   local function evalSpec(spec)
     local new, parts = NS.SpecScore(item, me.class, spec.key)
     new = new or 0
     local cur, why, filled, plan = NS.CurrentSlotScore(item, me.class, spec.key)
+    -- 적중 상한: 상한을 넘는 적중은 점수에 넣지 않는다
+    local hit
+    local hw = (NS.GetWeights(me.class, spec.key) or {}).HITPCT or 0
+    local newHit = item.stats.HITPCT or 0
+    if hw > 0 and plan and cur ~= nil then
+      if equippedHit == nil then equippedHit = NS.EquippedHitSum() or false end
+      if equippedHit then
+        local cap, spell = NS.HitCapFor(spec)
+        local bonus = NS.HitBonus()
+        local before = equippedHit + bonus
+        local adj, after
+        if plan.pair and plan.options then
+          -- 칸마다 빠지는 적중이 다르므로, 보정한 점수로 가장 좋은 칸을 다시 고른다
+          local best, bestAdj, bestAfter
+          for _, o in ipairs(plan.options) do
+            if not o.blocked then
+              local a, af = NS.HitCapAdjust(hw, before, hitOf(o.old), newHit, cap)
+              if not best or (a - o.cur) > (bestAdj - best.cur) then best, bestAdj, bestAfter = o, a, af end
+            end
+          end
+          if best then
+            cur, filled, plan.slot, plan.old = best.cur, best.filled, best.slot, best.old
+            adj, after = bestAdj, bestAfter
+          end
+        else
+          adj, after = NS.HitCapAdjust(hw, before, hitOf(plan.old) + hitOf(plan.both), newHit, cap)
+        end
+        if adj then
+          new = new + adj
+          if adj < 0 then
+            for _, p in ipairs(parts or {}) do
+              if p.stat == "HITPCT" then p.value = math.max(0, p.value + adj) end
+            end
+            table.sort(parts, function(a, b) return a.value > b.value end)
+          end
+          hit = { after = after, before = before, gear = after - bonus, bonus = bonus, cap = cap, spell = spell,
+                  adjust = adj, cut = math.max(0, -adj / hw) }
+        end
+      end
+    end
     local slotGain = gainOf(new, cur)
     local gain = slotGain
     -- 두 칸 부위는 "두 칸 합(조합)" 기준으로 얼마나 좋아지는지 본다 (한 칸만 기준으로 하면 상승률이 부풀려짐)
@@ -265,7 +345,7 @@ function NS.EvaluateForMe(link, opts)
     return {
       new = new, parts = parts or {}, cur = cur, why = why, filled = filled, plan = plan,
       fit = NS.SpecFit(item, me.class, spec.key, maxScore),
-      gain = gain, slotGain = slotGain,
+      gain = gain, slotGain = slotGain, hit = hit,
     }
   end
   local P = evalSpec(pSpec)
@@ -348,19 +428,8 @@ function NS.EvaluateForMe(link, opts)
     end
     res.swap = { slot = plan.slot, label = NS.SLOT_LABEL[plan.slot], old = plan.old, keep = keep }
   end
-  -- 적중 안내 (점수에는 영향 없음): 바꾼 뒤 장비 적중 합계와 참고 상한
-  local W = NS.GetWeights(me.class, mainSpec.key) or {}
-  if (item.stats.HITPCT or 0) > 0 and (W.HITPCT or 0) > 0 and plan then
-    local function hitOf(it) return (it and it.stats and it.stats.HITPCT) or 0 end
-    local sum = 0
-    for slot = 1, 18 do
-      local l = GetInventoryItemLink("player", slot)
-      if l and not NS.IsSecret(l) then sum = sum + hitOf(NS.ReadItem(l)) end
-    end
-    local spell = (mainSpec.role == "CASTER" or mainSpec.role == "HEALER")
-    res.hit = { after = sum - hitOf(plan.old) - hitOf(plan.both) + item.stats.HITPCT,
-                cap = spell and NS.HitCapRef.SPELL or NS.HitCapRef.MELEE, spell = spell }
-  end
+  -- 적중 안내 (툴팁): 바꾼 뒤 적중 합계, 상한, 상한을 넘어 점수에서 뺀 양
+  if (item.stats.HITPCT or 0) > 0 and main.hit then res.hit = main.hit end
 
   -- 점수 차이 (툴팁 "+n점" 표시용): 차비면 주 특성, 아니면 판정에 쓴 특성 기준
   local scoreBase = (key == "GREED") and P or main
