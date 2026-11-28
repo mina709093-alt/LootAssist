@@ -2,7 +2,7 @@
 ## Title: 전리품 도우미 |cff66ccff(LootAssist)|r
 ## Notes: 주사위 입찰/양보/차비 판단을 돕는 애드온 (상수팩)
 ## Author: 상수
-## Version: 0.9.0
+## Version: 0.9.1
 ## X-License: GPL-2.0
 ## Category: 상수팩
 ## SavedVariables: LootAssistDB, SangsuPackDB

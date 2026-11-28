@@ -2,6 +2,10 @@
 if not SangsuPack or not SangsuPack.RegisterChangelog then return end
 
 SangsuPack:RegisterChangelog("LootAssist", {
+  { ver = "0.9.1",
+    "마법사(비전·화염·냉기)와 흑마법사(고통·악마·파괴)의 능력치 가중치를 wowsims 시뮬레이터로 계산한 값으로 바꿨습니다. 28개 특성 중 24개가 시뮬 값입니다.",
+    "신성·보호 성기사, 복원 주술사, 회복 드루이드는 wowsims에 시뮬이 없어 예전 추정값을 그대로 씁니다.",
+  },
   { ver = "0.9.0",
     "가방에 지금 장비보다 좋은 아이템이 있으면 그것을 기준으로 비교합니다. 지금 낄 수 있는 것(레벨·직업)만 봅니다.",
     "반지·장신구는 낀 것과 가방 것 중 가장 좋은 두 개를 기준 조합으로 삼습니다.",

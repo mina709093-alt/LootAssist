@@ -98,6 +98,32 @@ NS.SimEP = {
              HasteRating = 0.3931, ArmorPenetration = 0.0742, ExpertiseRating = 0.4904, PhysicalDamage = 1.8631,
              MainHandDps = 2.142 } },
   },
+  -- 아래 두 직업은 presets.ts 에 EP 프리셋이 없어서, wowsims 웹 시뮬레이터(wowsims.com/forever, dc09e00)의
+  -- "Stat Weights" 계산을 프리셋 설정·장비 그대로 돌려 얻은 값이다 (12,500회, 2026-11-28, 소수 둘째 자리).
+  -- 웹 화면은 적중·치명타·가속을 1% 단위로 보여 주므로 레이팅 1점 값으로 바꿔 적는다 (적중·가속 ÷10, 치명타 ÷14).
+  -- 신성·보호 성기사, 복원 주술사, 회복 드루이드는 웹에서 "장비 계획 전용(시뮬 없음)"이거나 프리셋 장비가 없어 계산하지 못했다.
+  MAGE = {
+    ARCANE = { file = "wowsims.com/forever/mage/dps (웹 계산)", preset = "Arcane", main = "SpellDamage",
+      ep = { Intellect = 0.86, SpellDamage = 1, ArcaneDamage = 0.89, FireDamage = 0.11, SpellPiercing = 2.58, Spirit = 0.13,
+             HitRating = 13.66 / 10, CritRating = 8.80 / 14, HasteRating = 23.17 / 10, MP5 = 0.16 } },
+    FIRE = { file = "wowsims.com/forever/mage/dps (웹 계산)", preset = "Fire", main = "SpellDamage",
+      ep = { Intellect = 0.31, SpellDamage = 1, ArcaneDamage = 0.12, FireDamage = 0.88, SpellPiercing = 2.24,
+             HitRating = 14.80 / 10, CritRating = 11.56 / 14, HasteRating = 10.42 / 10 } },
+    FROST = { file = "wowsims.com/forever/mage/dps (웹 계산)", preset = "Frost Incin", main = "SpellDamage",
+      ep = { Intellect = 0.26, SpellDamage = 1, FrostDamage = 1.00, SpellPiercing = 2.16, Spirit = 0.04,
+             HitRating = 15.36 / 10, CritRating = 9.61 / 14, HasteRating = 10.61 / 10, MP5 = 0.12 } },
+  },
+  WARLOCK = {
+    AFFLICTION = { file = "wowsims.com/forever/warlock/dps (웹 계산)", preset = "Aff (Wrack)", main = "SpellDamage",
+      ep = { Intellect = 0.33, SpellDamage = 1, ShadowDamage = 0.98, SpellPiercing = 0.19, Spirit = 0.04,
+             HitRating = 6.77 / 10, CritRating = 10.35 / 14, HasteRating = 4.30 / 10, MP5 = 0.24 } },
+    DEMONOLOGY = { file = "wowsims.com/forever/warlock/dps (웹 계산)", preset = "Demo (Fire Brand)", main = "SpellDamage",
+      ep = { Intellect = 0.32, SpellDamage = 1, FireDamage = 0.74, ShadowDamage = 0.26, SpellPiercing = 1.29, Spirit = 0.15,
+             HitRating = 12.88 / 10, CritRating = 8.61 / 14, HasteRating = 5.49 / 10, MP5 = 0.30 } },
+    DESTRUCTION = { file = "wowsims.com/forever/warlock/dps (웹 계산)", preset = "Destro", main = "SpellDamage",
+      ep = { Intellect = 0.29, SpellDamage = 1, FireDamage = 0.64, ShadowDamage = 0.34, SpellPiercing = 1.39, Spirit = 0.12,
+             HitRating = 10.24 / 10, CritRating = 10.23 / 14, HasteRating = 7.40 / 10, MP5 = 0.28 } },
+  },
 }
 
 -- 시뮬 EP -> 이 애드온 가중치 (주 능력치 1점 = 1.0)

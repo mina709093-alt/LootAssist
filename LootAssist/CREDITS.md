@@ -25,6 +25,8 @@
   - https://github.com/wowsims/forever (라이선스 원문: 저장소의 `LICENSE`)
   - 각 특성 폴더 `ui/specs/<직업>/<특성>/presets.ts`(야성 드루이드는 `ui/specs/druid/feral_ep.ts`)의 EP 프리셋 값과
     `ui/sim/constants/mechanics.ts`의 레이팅 환산값(적중 10, 치명타 14, 가속 10, 숙련 10 = 1%)을 옮겼습니다.
+  - 마법사·흑마법사(0.9.1)는 프리셋에 EP가 없어서, wowsims 웹 시뮬레이터(https://wowsims.com/forever)의
+    능력치 가중치 계산을 프리셋 설정·장비 그대로 돌려 나온 값을 옮겼습니다(2026-11-28).
   - 확인한 버전: master `dc09e00` (2026-11-28). 코드는 가져오지 않았고 숫자만 씁니다.
   - wowsims는 이 프로젝트를 쓰는 곳에 원 프로젝트 링크를 남겨 달라고 요청합니다. 위 링크가 그 안내입니다.
 
