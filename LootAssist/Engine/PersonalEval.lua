@@ -129,11 +129,187 @@ local function pairOptions(item, slots, equipped, score)
 end
 NS.PairOptions = pairOptions
 
+local function hitOf(it) return (it and it.stats and it.stats.HITPCT) or 0 end
+
+-- 가방 장비 (0.9.0) ---------------------------------------------------------
+-- 가방에 지금 장비보다 좋은 것이 있으면 그것을 기준으로 비교하고, 무기는 가방 무기와의 조합까지 본다.
+local bagCache
+do
+  local f = CreateFrame("Frame")
+  f:RegisterEvent("BAG_UPDATE_DELAYED")
+  f:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+  f:RegisterEvent("PLAYER_LEVEL_UP")
+  f:SetScript("OnEvent", function() bagCache = nil end)
+end
+
+-- 가방(0~4)의 장비 아이템. 못 읽은 아이템이 있으면 다음에 다시 읽는다
+function NS.BagGear()
+  if bagCache then return bagCache end
+  local C = C_Container
+  local numSlots = (C and C.GetContainerNumSlots) or GetContainerNumSlots
+  local getLink = (C and C.GetContainerItemLink) or GetContainerItemLink
+  if not (numSlots and getLink) then return {} end
+  local list, complete = {}, true
+  for bag = 0, 4 do
+    local ok, n = pcall(numSlots, bag)
+    for s = 1, (ok and type(n) == "number") and n or 0 do
+      local ok2, l = pcall(getLink, bag, s)
+      if ok2 and type(l) == "string" and not NS.IsSecret(l) then
+        local _, _, _, loc = GetItemInfoInstant(l)
+        if loc and NS.SLOTS[loc] then
+          local it = NS.ReadItem(l)
+          if it then list[#list + 1] = it else complete = false end
+        end
+      end
+    end
+  end
+  if complete then bagCache = list end
+  return list
+end
+
+-- 지금 바로 낄 수 있는 가방 장비 (평가하는 아이템과 같은 번호는 뺌)
+function NS.UsableBagGear(item, classFile, level)
+  local out = {}
+  for _, b in ipairs(NS.BagGear()) do
+    if b.itemID ~= item.itemID and (b.reqLevel or 0) <= level and NS.CheckEligibility(b, classFile, level).ok then
+      out[#out + 1] = b
+    end
+  end
+  return out
+end
+
+local function fits(it, slot)
+  for _, s in ipairs(NS.SLOTS[it.equipLoc] or {}) do
+    if s == slot then return true end
+  end
+  return false
+end
+
+-- 두 칸 부위 기준 조합: 낀 것과 가방 것 중 점수가 높은 것 (고유는 하나만). 같은 점수면 낀 것을 남긴다.
+-- 돌려줌: 칸별 아이템(false = 빈 칸), 기준에 들어간 가방 아이템 목록, 적중 차이(기준 - 낀 것)
+local function pairBaseline(slots, equipped, bag, score)
+  local cands = {}
+  for i = 1, #slots do
+    if equipped[i] then cands[#cands + 1] = { it = equipped[i], slot = i, s = score(equipped[i]) } end
+  end
+  local nBag = 0
+  for _, b in ipairs(bag) do
+    local s = score(b)
+    if fits(b, slots[1]) and s > 0 then cands[#cands + 1] = { it = b, s = s }; nBag = nBag + 1 end
+  end
+  if nBag == 0 then return equipped end
+  table.sort(cands, function(a, b)
+    if a.s ~= b.s then return a.s > b.s end
+    return (a.slot and 1 or 0) > (b.slot and 1 or 0)
+  end)
+  local pick = {}
+  for _, c in ipairs(cands) do
+    if #pick >= #slots then break end
+    local dup = false
+    for _, p in ipairs(pick) do
+      if c.it.unique and p.it.itemID == c.it.itemID then dup = true end
+    end
+    if not dup then pick[#pick + 1] = c end
+  end
+  local out, used, bagBase, shift = {}, {}, {}, 0
+  for i = 1, #slots do out[i] = false; shift = shift - hitOf(equipped[i] or nil) end
+  for _, c in ipairs(pick) do
+    if c.slot then out[c.slot] = c.it; used[c.slot] = true end
+  end
+  for _, c in ipairs(pick) do
+    if not c.slot then
+      for i = 1, #slots do
+        if not used[i] then out[i] = c.it; used[i] = true; break end
+      end
+      bagBase[#bagBase + 1] = c.it
+    end
+  end
+  for i = 1, #slots do shift = shift + hitOf(out[i] or nil) end
+  if #bagBase == 0 then return equipped end
+  return out, bagBase, shift
+end
+
+-- 무기 조합 (주무기·보조장비·양손). 낀 무기와 가방 무기 중에서 고른다.
+local WEAPON_LOC = { INVTYPE_WEAPON = true, INVTYPE_WEAPONMAINHAND = true, INVTYPE_2HWEAPON = true,
+                     INVTYPE_WEAPONOFFHAND = true, INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true }
+local MH_LOC = { INVTYPE_WEAPON = true, INVTYPE_WEAPONMAINHAND = true }
+local OH_LOC = { INVTYPE_WEAPONOFFHAND = true, INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true }
+
+-- must 를 주면 그 아이템이 들어간 조합 중 가장 좋은 것
+local function bestWeaponSet(pool, W, score, must)
+  local best
+  local function canOH(x) return OH_LOC[x.equipLoc] or (W.dualWield and x.equipLoc == "INVTYPE_WEAPON") end
+  local function try(a, b)
+    if must and a ~= must and b ~= must then return end
+    if a and b and a.unique and a.itemID == b.itemID then return end
+    local s = score(a) + score(b)
+    if not best or s > best.s then best = { s = s, mh = a, oh = b } end
+  end
+  try(nil, nil)
+  for _, a in ipairs(pool) do
+    if a.equipLoc == "INVTYPE_2HWEAPON" then
+      try(a, nil)
+    elseif MH_LOC[a.equipLoc] then
+      try(a, nil)
+      for _, b in ipairs(pool) do
+        if b ~= a and canOH(b) then try(a, b) end
+      end
+    end
+    if canOH(a) then try(nil, a) end
+  end
+  return best
+end
+
+-- 무기 칸 계산 (내 평가 전용, 가방 포함). 두 조합에 모두 들어간 무기는 빼고 바뀌는 부분만 점수로 비교한다.
+local function weaponPlan(item, W, mh, oh, bag, score)
+  local pool = {}
+  if mh then pool[#pool + 1] = mh end
+  if oh then pool[#pool + 1] = oh end
+  for _, b in ipairs(bag) do
+    if WEAPON_LOC[b.equipLoc] then pool[#pool + 1] = b end
+  end
+  local curSet = bestWeaponSet(pool, W, score)
+  pool[#pool + 1] = item
+  local newSet = bestWeaponSet(pool, W, score, item)
+  if not newSet then return nil, "UNIQUE" end
+  -- 양손 무기를 쓰는데 함께 쓸 한손 무기가 없는 보조장비
+  if OH_LOC[item.equipLoc] and not newSet.mh and curSet.mh and curSet.mh.equipLoc == "INVTYPE_2HWEAPON" then
+    return nil, "TWOHAND"
+  end
+  local function has(set, x) return x and (set.mh == x or set.oh == x) end
+  local function isBag(x) return x and x ~= mh and x ~= oh and x ~= item end
+  local cur, new, hitOld, hitNew = 0, 0, 0, 0
+  local plan = { weaponSet = true, curSet = curSet, newSet = newSet,
+                 hitShift = hitOf(curSet.mh) + hitOf(curSet.oh) - hitOf(mh or nil) - hitOf(oh or nil) }
+  for _, x in ipairs({ curSet.mh or false, curSet.oh or false }) do
+    if x and not has(newSet, x) then
+      cur = cur + score(x); hitOld = hitOld + hitOf(x)
+      plan.old = plan.old or x
+      if isBag(x) then plan.bagBase = plan.bagBase or {}; plan.bagBase[#plan.bagBase + 1] = x end
+    elseif x then
+      plan.keep = x -- 두 조합에 모두 들어간 무기 (가방 것이면 "함께 쓰는 것"으로 안내)
+      if isBag(x) then plan.bagWith = plan.bagWith or {}; plan.bagWith[#plan.bagWith + 1] = x end
+    end
+  end
+  for _, x in ipairs({ newSet.mh or false, newSet.oh or false }) do
+    if x and not has(curSet, x) then
+      new = new + score(x); hitNew = hitNew + hitOf(x)
+      if isBag(x) then plan.bagWith = plan.bagWith or {}; plan.bagWith[#plan.bagWith + 1] = x end
+    end
+  end
+  plan.slot = (newSet.mh == item) and 16 or 17
+  plan.total, plan.newScore, plan.hitOld, plan.hitNew = cur, new, hitOld, hitNew
+  plan.sameEquipped = item.unique and ((mh and mh.itemID == item.itemID) or (oh and oh.itemID == item.itemID)) or false
+  -- filled = 새 아이템이 밀어내는 무기가 있는가 (없으면 "비어 있는 칸을 채웁니다")
+  return cur, nil, (plan.old ~= nil), plan
+end
+
 -- 같은 칸 현재 장비 점수. nil = 아직 못 읽음, 두 번째 값은 상황 설명, 세 번째 값은 칸에 장비가 있는지,
 -- 네 번째 값은 교체 계획 { slot, old, total, pair, options, sameEquipped } (알 수 있을 때만)
 -- 두 번째 값 "UNIQUE" = 고유 아이템이라 바꿀 수 있는 칸이 없음
 -- getLink(slot) 를 주면 그 장비(살펴보기로 읽은 파티원 장비 등)로 계산한다
-function NS.CurrentSlotScore(item, classFile, specKey, getLink)
+-- bag(0.9.0) = 지금 낄 수 있는 가방 장비 목록. 주면 가방 것까지 기준에 넣는다 (내 평가에서만 씀)
+function NS.CurrentSlotScore(item, classFile, specKey, getLink, bag)
   local W = NS.GetWeights(classFile, specKey) or {}
   local readEquipped = function(slot) return readEquipped(slot, getLink) end
   local loc = item.equipLoc
@@ -145,6 +321,12 @@ function NS.CurrentSlotScore(item, classFile, specKey, getLink)
     return nil, mhState
   end
   local mhIs2H = mh and mh.equipLoc == "INVTYPE_2HWEAPON"
+
+  if bag and WEAPON_LOC[loc] then
+    local oh = readEquipped(17)
+    if oh == nil then return nil, "loading" end
+    return weaponPlan(item, W, mh, oh, bag, score)
+  end
 
   if loc == "INVTYPE_2HWEAPON" then
     local oh = readEquipped(17)
@@ -185,11 +367,23 @@ function NS.CurrentSlotScore(item, classFile, specKey, getLink)
     equipped[i] = it
   end
   if #slots == 1 then
-    local s = score(equipped[1] or nil)
-    return s, nil, (equipped[1] ~= false), { slot = slots[1], old = equipped[1] or nil, total = s }
+    local worn = equipped[1] or nil
+    local base, s = worn, score(worn)
+    for _, b in ipairs(bag or {}) do
+      if fits(b, slots[1]) then
+        local bs = score(b)
+        if bs > s then base, s = b, bs end
+      end
+    end
+    local plan = { slot = slots[1], old = base, total = s }
+    if base ~= worn then plan.bagBase = { base }; plan.hitShift = hitOf(base) - hitOf(worn) end
+    return s, nil, (equipped[1] ~= false or base ~= worn), plan
   end
+  local bagBase, hitShift
+  if bag then equipped, bagBase, hitShift = pairBaseline(slots, equipped, bag, score) end
   local best, plan = pairOptions(item, slots, equipped, score)
   if not best then return nil, "UNIQUE" end
+  plan.bagBase, plan.hitShift = bagBase, hitShift
   return best.cur, nil, best.filled, plan
 end
 
@@ -199,6 +393,16 @@ local function topStats(parts, n)
     if parts[i].value > 0 then names[#names + 1] = NS.StatLabel[parts[i].stat] or parts[i].stat end
   end
   return table.concat(names, ", ")
+end
+
+local function namesOf(list)
+  local t = {}
+  for _, it in ipairs(list) do t[#t + 1] = it.link or it.name or "?" end
+  return table.concat(t, ", ")
+end
+
+local function W_dualWield(classFile, specKey)
+  return (NS.GetWeights(classFile, specKey) or {}).dualWield
 end
 
 local function gainOf(new, cur)
@@ -216,7 +420,6 @@ local function finish(res, key)
 end
 
 -- 적중 상한 반영 (0.8.0) ---------------------------------------------------
-local function hitOf(it) return (it and it.stats and it.stats.HITPCT) or 0 end
 
 -- 지금 낀 장비의 적중 합계(%). 못 읽은 칸이 있으면 nil
 function NS.EquippedHitSum(getLink)
@@ -292,10 +495,13 @@ function NS.EvaluateForMe(link, opts)
 
   local maxScore = NS.MaxSpecScore(item)
   local equippedHit -- 장비 적중 합계 (필요할 때 한 번만 읽음, false = 못 읽음)
+  local bag = NS.UsableBagGear(item, me.class, me.level)
   local function evalSpec(spec)
     local new, parts = NS.SpecScore(item, me.class, spec.key)
     new = new or 0
-    local cur, why, filled, plan = NS.CurrentSlotScore(item, me.class, spec.key)
+    local cur, why, filled, plan = NS.CurrentSlotScore(item, me.class, spec.key, nil, bag)
+    -- 무기 조합: 가방 무기와 함께 쓰는 경우 그 점수까지 새 점수에 넣는다
+    if plan and plan.newScore then new = plan.newScore end
     -- 적중 상한: 상한을 넘는 적중은 점수에 넣지 않는다
     local hit
     local hw = (NS.GetWeights(me.class, spec.key) or {}).HITPCT or 0
@@ -305,7 +511,7 @@ function NS.EvaluateForMe(link, opts)
       if equippedHit then
         local cap, spell = NS.HitCapFor(spec)
         local bonus = NS.HitBonus()
-        local before = equippedHit + bonus
+        local before = equippedHit + bonus + (plan.hitShift or 0)
         local adj, after
         if plan.pair and plan.options then
           -- 칸마다 빠지는 적중이 다르므로, 보정한 점수로 가장 좋은 칸을 다시 고른다
@@ -321,7 +527,8 @@ function NS.EvaluateForMe(link, opts)
             adj, after = bestAdj, bestAfter
           end
         else
-          adj, after = NS.HitCapAdjust(hw, before, hitOf(plan.old) + hitOf(plan.both), newHit, cap)
+          adj, after = NS.HitCapAdjust(hw, before, plan.hitOld or (hitOf(plan.old) + hitOf(plan.both)),
+            plan.hitNew or newHit, cap)
         end
         if adj then
           new = new + adj
@@ -398,6 +605,8 @@ function NS.EvaluateForMe(link, opts)
       res.reasons[#res.reasons + 1] = "점수에 넣을 능력치가 없습니다 (저항력 등은 제외)"
     elseif P.fit < E.FIT and (not S or S.fit < E.FIT) then
       res.reasons[#res.reasons + 1] = ("%s(%s)에 맞는 능력치가 적습니다"):format(which, pSpec.name)
+    elseif P.plan and P.plan.bagBase then
+      res.reasons[#res.reasons + 1] = ("가방에 있는 %s보다 좋지 않습니다"):format(namesOf(P.plan.bagBase))
     else
       res.reasons[#res.reasons + 1] = "현재 장비보다 좋지 않습니다"
     end
@@ -427,6 +636,21 @@ function NS.EvaluateForMe(link, opts)
       if o.slot ~= plan.slot then keep = o.old end
     end
     res.swap = { slot = plan.slot, label = NS.SLOT_LABEL[plan.slot], old = plan.old, keep = keep }
+  elseif plan and plan.weaponSet and key ~= "GREED"
+      and ((item.equipLoc == "INVTYPE_WEAPON" and W_dualWield(me.class, mainSpec.key)) or plan.bagWith) then
+    -- 무기 조합: 새 아이템이 들어갈 칸과 함께 쓰는 무기
+    local ns = plan.newSet
+    local partner = (ns.mh == item) and ns.oh or ns.mh
+    res.swap = { slot = plan.slot, label = NS.SLOT_LABEL[plan.slot], old = plan.old, keep = partner }
+  end
+  -- 가방 장비를 기준이나 조합에 쓴 경우
+  if plan and key ~= "GREED" then
+    if plan.bagBase then
+      res.reasons[#res.reasons + 1] = ("가방에 있는 %s이(가) 지금 장비보다 좋아서 그것과 비교했습니다"):format(namesOf(plan.bagBase))
+    end
+    if plan.bagWith then
+      res.reasons[#res.reasons + 1] = ("가방의 %s와(과) 함께 쓰는 기준입니다"):format(namesOf(plan.bagWith))
+    end
   end
   -- 적중 안내 (툴팁): 바꾼 뒤 적중 합계, 상한, 상한을 넘어 점수에서 뺀 양
   if (item.stats.HITPCT or 0) > 0 and main.hit then res.hit = main.hit end
