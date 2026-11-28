@@ -39,7 +39,10 @@ function NS.SpecScore(item, classFile, specKey)
     local w
     if item.subclassID == 19 then w = W.DPS_WAND
     elseif item.isRanged then w = W.DPS_RANGED
-    elseif item.isWeapon then w = W.DPS_MELEE end
+    elseif item.isWeapon then
+      -- 보조 전용 무기는 보조 무기 공격력 가중치(시뮬 OffHandDps)가 있으면 그것을 쓴다
+      if item.equipLoc == "INVTYPE_WEAPONOFFHAND" and W.DPS_OFFHAND then w = W.DPS_OFFHAND else w = W.DPS_MELEE end
+    end
     if w and w > 0 then
       total = total + w * item.dps
       parts[#parts + 1] = { stat = "DPS", value = w * item.dps }
@@ -357,6 +360,14 @@ function NS.EvaluateForMe(link, opts)
     local spell = (mainSpec.role == "CASTER" or mainSpec.role == "HEALER")
     res.hit = { after = sum - hitOf(plan.old) - hitOf(plan.both) + item.stats.HITPCT,
                 cap = spell and NS.HitCapRef.SPELL or NS.HitCapRef.MELEE, spell = spell }
+  end
+
+  -- 점수 차이 (툴팁 "+n점" 표시용): 차비면 주 특성, 아니면 판정에 쓴 특성 기준
+  local scoreBase = (key == "GREED") and P or main
+  local scoreSpec = (key == "GREED") and pSpec or mainSpec
+  if scoreBase.cur ~= nil then
+    res.score = { new = scoreBase.new, cur = scoreBase.cur, delta = scoreBase.new - scoreBase.cur,
+                  spec = scoreSpec.name, info = NS.WeightInfo(me.class, scoreSpec.key) }
   end
 
   if res.equippedCopy and key ~= "GREED" then

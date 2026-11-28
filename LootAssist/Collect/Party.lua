@@ -71,7 +71,9 @@ function NS.MemberInfo(member)
   end
   if info.secondary and (member.level or 1) < NS.DUAL_SPEC_LEVEL then info.secondary = nil end
 
-  if c and c.class == member.class and c.scores and (c.scores.P or c.scores.S) then
+  -- 점수 기준이 같은 버전(3 이상)에서 받은 장비 점수만 쓴다. 이전 버전 점수는 기준이 달라 비교하면 틀린다.
+  local sameScale = c and (c.version or 0) >= (NS.COMM_SCORE_VERSION or 0)
+  if c and c.class == member.class and sameScale and c.scores and (c.scores.P or c.scores.S) then
     info.gearSource, info.commScores, info.commSlots = "comm", c.scores, c.slots
   elseif member.guid and NS.PartyInspect[member.guid] then
     info.gearSource, info.inspectLinks = "inspect", NS.PartyInspect[member.guid].links

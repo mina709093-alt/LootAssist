@@ -18,3 +18,38 @@
 ## 검증
 
 2026-11-15 통곡의 동굴(빌드 1.60.1.70938)에서 실제로 나온 보스 전리품(파랑 9종)이 모두 데이터의 보스와 일치했습니다.
+
+## 능력치 가중치 (Data/SimWeights.lua)
+
+- **wowsims/forever** — MIT License, Copyright (c) 2022 wowsims team
+  - https://github.com/wowsims/forever (라이선스 원문: 저장소의 `LICENSE`)
+  - 각 특성 폴더 `ui/specs/<직업>/<특성>/presets.ts`(야성 드루이드는 `ui/specs/druid/feral_ep.ts`)의 EP 프리셋 값과
+    `ui/sim/constants/mechanics.ts`의 레이팅 환산값(적중 10, 치명타 14, 가속 10, 숙련 10 = 1%)을 옮겼습니다.
+  - 확인한 버전: master `dc09e00` (2026-11-28). 코드는 가져오지 않았고 숫자만 씁니다.
+  - wowsims는 이 프로젝트를 쓰는 곳에 원 프로젝트 링크를 남겨 달라고 요청합니다. 위 링크가 그 안내입니다.
+
+MIT License 전문 (wowsims/forever):
+
+```
+MIT License
+
+Copyright (c) 2022 wowsims team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

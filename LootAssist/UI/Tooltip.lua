@@ -41,6 +41,19 @@ local function addLines(tooltip, link)
   for i = 1, math.min(#r.reasons, 3) do
     tooltip:AddLine("  " .. r.reasons[i], 0.78, 0.78, 0.78, true)
   end
+  -- 점수 차이: 현재 장비 대비 +n점과 가중치 출처
+  local sc = r.score
+  if sc then
+    local color = (sc.delta > 0.05) and "33ff66" or "a8a8a8"
+    local basis
+    if sc.info and sc.info.sim then
+      basis = ("%s 1 = 1점, wowsims 60레벨 기준"):format(sc.info.unit or "?")
+    else
+      basis = "추정 가중치"
+    end
+    tooltip:AddLine(("  점수: 현재 장비 대비 |cff%s%+.1f점|r (%s, %s)"):format(color, sc.delta, sc.spec or "?", basis),
+      0.78, 0.78, 0.78, true)
+  end
   -- 반지/장신구/쌍수 무기: 어느 칸을 바꾸는지
   local s = r.swap
   if s and s.label then

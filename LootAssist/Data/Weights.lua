@@ -19,6 +19,8 @@ NS.StatKeys = {
   ITEM_MOD_HEALTH_REGEN_SHORT = "HP5",
   RESISTANCE0_NAME = "ARMOR",
   ITEM_MOD_DAMAGE_PER_SECOND_SHORT = "DPS",
+  ITEM_MOD_SPELL_PENETRATION_SHORT = "SPELLPEN",  -- 주문 관통력 (실측: LootAssistDB.unknownStats, 아이템 12543)
+  ITEM_MOD_PHYSICAL_DAMAGE_DONE_SHORT = "PHYS",   -- 물리 공격력 (실측: LootAssistDB.unknownStats, 아이템 274614)
 }
 
 -- 같은 이름 규칙이지만 아직 실측에서 확인하지 못한 키
@@ -35,6 +37,8 @@ NS.StatKeysUnverified = {
   ITEM_MOD_BLOCK_RATING_SHORT = "BLOCK",
   ITEM_MOD_BLOCK_VALUE_SHORT = "BLOCKVAL",
   ITEM_MOD_EXPERTISE_RATING_SHORT = "EXP",
+  ITEM_MOD_HASTE_RATING_SHORT = "HASTE",                  -- 가속 레이팅 (값은 레이팅 그대로)
+  ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = "ARPEN",      -- 방어구 관통
 }
 
 -- 레이팅 키: 값은 레이팅 점수이고, 아래 환산표로 %로 바꿔 HITPCT / CRITPCT 에 더한다
@@ -49,6 +53,7 @@ NS.RatingKeysUnverified = {
 -- CRIT 14: 게임 측정 (34레벨 고양 주술사, 치명타 +14 장비 착용 시 캐릭터 창 치명타 +1.0%, 2026-11-21)
 --          다른 레벨에서도 같은지는 확인하지 못함
 -- HIT 10: WOWF BiS 페이지 상한 표기("장비 30 (3%)") 기준, 게임에서 측정하지 않음 (미검증)
+-- 두 값 모두 wowsims/forever ui/sim/constants/mechanics.ts(60레벨)와 같음 (2026-11-28 확인)
 NS.RatingPerPct = { CRIT = 14, HIT = 10 }
 
 -- 적중 참고 상한(%) - 점수에는 쓰지 않고 툴팁 안내에만 쓴다
@@ -73,6 +78,7 @@ NS.StatLabel = {
   MP5 = "마나 회복", HP5 = "생명력 회복", ARMOR = "방어도", DPS = "무기 공격력",
   HITPCT = "적중", CRITPCT = "치명타", EXP = "숙련", AP = "전투력", RAP = "원거리 전투력",
   DEF = "방어 숙련", DODGE = "회피", PARRY = "무기 막기", BLOCK = "방패 막기", BLOCKVAL = "방패 피해 흡수",
+  SPELLPEN = "주문 관통력", PHYS = "물리 공격력", HASTE = "가속", ARPEN = "방어구 관통",
 }
 
 -- 공통 묶음
@@ -142,4 +148,15 @@ NS.Weights = {
 function NS.GetWeights(classFile, specKey)
   local c = NS.Weights[classFile or ""]
   return c and c[specKey or ""]
+end
+
+-- 점수 기준 설명: { sim = 시뮬 가중치인가, unit = "힘" 같은 1점 기준 능력치 이름, preset = 시뮬 프리셋 이름 }
+-- 추정 가중치는 묶음마다 기준이 달라서 unit 을 주지 않는다.
+function NS.WeightInfo(classFile, specKey)
+  local W = NS.GetWeights(classFile, specKey)
+  if not W then return nil end
+  if W._source == "sim" then
+    return { sim = true, unit = NS.StatLabel[W._main] or W._main, preset = W._preset }
+  end
+  return { sim = false }
 end

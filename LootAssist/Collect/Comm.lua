@@ -5,7 +5,9 @@
 local _, NS = ...
 
 local PREFIX = "LootAssist"
-local VERSION = 2
+-- 버전 3 (0.7.0): 점수 기준이 시뮬 가중치로 바뀜. 버전 3 미만 파티원의 장비 점수는 비교에 쓰지 않는다 (Party.lua)
+local VERSION = 3
+NS.COMM_SCORE_VERSION = 3
 local SLOT_DETAIL = { 11, 12, 13, 14, 16, 17 }
 local pending = false
 local scheduled = false
