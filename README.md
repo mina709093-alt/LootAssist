@@ -3,6 +3,28 @@
 와우 포에버(WoW: Forever)용 애드온입니다. 던전에서 주사위 창이 뜨면 **입찰 / 양보 / 차비** 중 무엇이 합리적인지 판단을 돕습니다.
 상수팩 애드온이며, 아직 **테스트 중**입니다.
 
+## 데이터 출처와 연락처 (Data sources & contact)
+
+이 애드온은 아래에 적은 프로젝트들의 공개 데이터를 이용해 만들었습니다. 데이터를 만들고 공개해 주신 분들께 깊이 감사드립니다.
+
+저작권자나 데이터를 제공하신 분께서 사용을 원하지 않으시면, 언제든 아래 메일로 알려 주십시오.
+요청을 받는 즉시 해당 데이터의 사용을 멈추고, 이후 배포본에서 빼겠습니다. 그 밖에 필요하신 조치가 있으면 성심껏 협조하겠습니다.
+미처 허락을 구하지 못한 부분이 있었다면 진심으로 사과드립니다.
+
+- 연락처: mina709093@gmail.com
+
+> This add-on is built with publicly available data from the projects listed below, and we are sincerely grateful to their authors.
+> If you are a rights holder or data provider and would prefer that we not use your data, please contact us at any time at mina709093@gmail.com.
+> We will stop using it immediately upon request, remove it from future releases, and cooperate fully with any further steps you may need.
+> We apologize for any inconvenience this may have caused.
+
+| 데이터 | 가져온 곳 (라이선스) | 쓰는 곳 | 확인 방법 |
+|---|---|---|---|
+| 던전 보스 전리품, 드랍 확률, Forever 신규·변경 표시 | Dungeon Codex (AeonDungeonJournal) 1.4 (GPL-2.0, CurseForge project 1715265). Dungeon Codex의 원본: AtlasLootClassic(GPL-2.0), QuestieDB, foreverchanges.pro | `LootAssist/Data/Dungeons.lua` | `tools/convert_adj.py`로 변환. 2026-11-15 통곡의 동굴에서 실제로 나온 보스 전리품 9종이 모두 데이터와 일치 |
+| 특성별 능력치 가중치(EP), 레이팅 환산값 | [wowsims/forever](https://github.com/wowsims/forever) (MIT, Copyright (c) 2022 wowsims team) — 각 특성의 `presets.ts`, `ui/sim/constants/mechanics.ts` | `LootAssist/Data/SimWeights.lua` (0.7.0) | master `dc09e00`(2026-11-28)의 숫자만 옮김(코드는 가져오지 않음). 치명타 레이팅 14 = 1%는 게임 측정(34레벨 주술사)과 같음. 오프라인 시험으로 환산 확인 |
+
+자세한 출처와 라이선스 전문은 `LootAssist/CREDITS.md`에 있습니다.
+
 - 자동으로 입찰하거나 차비를 누르지 않습니다. 최종 선택은 항상 직접 합니다.
 - 내 직업·특성으로 착용할 수 있는지, 파티원에게 더 필요한 아이템인지를 함께 봅니다.
 
@@ -16,12 +38,13 @@ https://github.com/mina709093-alt/LootAssist
 
 게임에서 미니맵 버튼이나 `/전리품`으로 창을 엽니다.
 
-## 현재 버전에서 되는 것 (0.6.x)
+## 현재 버전에서 되는 것 (0.7.x)
 
 - 현재 위치(던전 / 필드 / 기타 인스턴스)와 내 캐릭터 표시
 - 주 특성 / 부 특성(40레벨부터) 선택
 - 착용 판정: 직업별 무기·방어구 숙련, 사슬·판금 40레벨 제한, 주 방어구 구분
 - 내 기준 아이템 평가: 특성별 능력치 가중치, 현재 장비 대비 상승량, 판정 이유
+- **시뮬레이터 가중치 (0.7.0)**: 28개 특성 중 18개는 wowsims(와우 포에버 시뮬레이터, 60레벨 기준) 가중치로 점수를 매깁니다. 나머지(신성·보호 성기사, 복원 주술사, 마법사, 흑마법사, 회복 드루이드)는 추정 가중치입니다. 툴팁에 "현재 장비 대비 +n점"과 점수 기준을 보여 줍니다. 장신구 사용·발동 효과와 세트 효과는 점수에 넣지 않습니다.
 - **파티 판정 (던전)**: 파티원과 비교해 적극 입찰 / 입찰 추천 / 상황에 따른 양보 / 양보 권장 / 차비 추천
 - **자동 공유**: 이 애드온을 쓰는 파티원끼리 직업·특성·장비 점수를 자동으로 주고받음 (전투 중에는 보내지 않음)
 - 파티원 특성 직접 설정 (이름별로 기억), 살펴보기 결과로 장비 비교
@@ -63,5 +86,5 @@ https://github.com/mina709093-alt/LootAssist
 
 ## 라이선스와 출처
 
-GPL-2.0 (`LICENSE`). 던전 전리품 데이터는 Dungeon Codex(GPL-2.0)에서 변환했습니다. 자세한 출처는 `LootAssist/CREDITS.md`에 있습니다.
+GPL-2.0 (`LICENSE`). 던전 전리품 데이터는 Dungeon Codex(GPL-2.0)에서 변환했고, 능력치 가중치는 wowsims/forever(MIT)의 값을 씁니다. 자세한 출처는 `LootAssist/CREDITS.md`에 있습니다.
 데이터를 다시 만들려면 `tools` 폴더에서 `python convert_adj.py <Dungeon Codex의 Data.lua 경로>`를 실행합니다.
